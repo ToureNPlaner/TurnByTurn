@@ -12,27 +12,57 @@ jsonfile = open(sys.argv[2])
 jsoncontent = json.loads(jsonfile.read())
 jsonfile.close()
 
+#streets =
+#[
+    #{
+        #'name' : 'asdstraße',
+        #'confidence' : [1,3,5],
+        #'coordinates' : [((48.1, 9.3), (48.2, 9.4)),((48.3, 9.4), (48.4, 9.5))]
+    #},
+    #{
+        #...
+    #}
+#]
+
 streets = []
-laststreet = None
 for subway in jsoncontent['way']:
     for i in range(0, len(subway)-1,1):
+        #TODO: nicer int to float coordinates
         url = sys.argv[1]+"?srclat=%f&srclon=%f&destlat=%f&destlon=%f" % (float("0."+str(subway[i]['lt']))*100, float("0."+str(subway[i]['ln']))*10, float("0."+str(subway[i+1]['lt']))*100, float("0."+str(subway[i+1]['ln']))*10)
-        #print(url)
         r = urllib.request.urlopen(url)
         response = json.loads(r.read().decode("utf-8"))
-        #print(repr(response))
+        #print("response from the server: " + repr(response))
         if not 'errmsg' in response:
-            streetname = sorted(response['streets'], key=lambda x: x['confidence'])
-            #print(repr(streetname))
-            streetsid = "".join(sorted([s['name'] for s in streetname if s['name']!= None]))
-            if not streetsid == laststreet and len(streetsid) > 1:
-                streets.append(streetname)
-                laststreet = streetsid
+            # we take the street with the smallest = best confidence
+            streetname = min(response['streets'], key=lambda x: x['confidence'])
+            #print("received streets: " + repr(response['streets']))
+            #print("received street with best confidence: " + repr(streetname))
+
+            # we want the street even if it has no name, because we don't know the reason it has no name
+            if streetname ['name'] == None:
+                name = "[unnamed]"
+            else:
+                name = streetname['name']
+
+            # if the street is actually a part of the street in the last step we add this part to the street
+            if  len(streets) > 0 and name == streets[-1]['name']:
+                # add new coordinates and confidence to our street (some_list[-1] => last element in python)
+                streets[-1]['confidence'].append(streetname['confidence'])
+                streets[-1]['coordinates'].append(((streetname['srclat'],streetname['srclon']),(streetname['destlat'],streetname['destlon'])))
+            else:
+                streets.append({
+                        'name' : name,
+                        'confidence' : [streetname['confidence']],
+                        'coordinates' : [((streetname['srclat'],streetname['srclon']),(streetname['destlat'],streetname['destlon']))]
+                    })
         else:
-            if response['errid'] != 1:
-                print("Error! (Message: \"" + response['errmsg']+"\")")
+            #if you don't want to print errors that the was just not found
+            #if response['errid'] != 1:
+            print("Error! (Message: \"" + response['errmsg']+"\")")
 
 print("Your way:")
 for street in streets:
-    #print (repr(street))
-    print(" ||| ".join([streetname['name'] + " (confidence: "+str(streetname['confidence']) + ")" + " coordinates: ("+str(streetname['srclat'])+","+str(streetname['srclon'])+"),("+str(streetname['destlat'])+","+str(streetname['destlon'])+")" for streetname in street]))
+    confidence = str(round(sum(street['confidence'])/len(street['confidence']),2))
+    coordinates = str(repr(street['coordinates']))
+    print(confidence + " " +street['name'])
+    #print(coordinates)
