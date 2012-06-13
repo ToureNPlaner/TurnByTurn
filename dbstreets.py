@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import psycopg2, bottle, json
+import psycopg2, bottle, json, functools
 from bottle import route, install, template, request
-import datetime
 
 conn = psycopg2.connect("dbname=gis user=osm")
 LIMIT = 4
 
+@functools.lru_cache(maxsize=4096)
 def db_streets(srclat,srclon,destlat,destlon):
     cur = conn.cursor() #multithreaded on one cursor probably doesn't work, so each thread doing a database connection gets a new one
     
@@ -48,7 +48,7 @@ def db_streets(srclat,srclon,destlat,destlon):
 
 @route('/')
 def hello():
-    return "Usage: http://" + request.remote_route.pop(len(request.remote_route)-1) + "/streetname/?srclat=X&srclon=X&destlat=X&destlon=X"
+    return "Usage: http://" + request.remote_route[-1] + "/streetname/?srclat=X&srclon=X&destlat=X&destlon=X"
 @route('/streetname/')
 def findways():
     srclat = float(request.params.get("srclat"))

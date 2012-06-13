@@ -58,11 +58,11 @@ for subway in jsoncontent['way']:
         else:
             #if you don't want to print errors that the was just not found
             #if response['errid'] != 1:
-            print("Error! (Message: \"" + response['errmsg']+"\")")
+            print("Error "+str(response['errid'])+"! (Message: \"" + response['errmsg']+"\")")
 
 print("Your way:")
 for street in streets:
-    confidence = str(round(sum(street['confidence'])/len(street['confidence']),2))
+    confidence = str(round(sum(street['confidence'])/len(street['confidence']),1))
     coordinates = str(repr(street['coordinates']))
-    print(confidence + " " +street['name'])
+    print(confidence, street['name'])
     #print(coordinates)
