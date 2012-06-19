@@ -58,7 +58,8 @@ for subway in jsoncontent['way']:
         else:
             #if you don't want to print errors that the was just not found
             #if response['errid'] != 1:
-            print("Error "+str(response['errid'])+"! (Message: \"" + response['errmsg']+"\")")
+                # i assume this is normal at intersections where tourenplaner's result include the endpoint of another street that is not on the actual street
+                print("Error "+str(response['errid'])+"! (Message: \"" + response['errmsg']+"\")")
 
 print("Your way:")
 for street in streets:
