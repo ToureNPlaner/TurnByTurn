@@ -3,7 +3,7 @@ import psycopg2, bottle, json, functools
 from bottle import route, install, template, request
 
 conn = psycopg2.connect("dbname=gis user=osm")
-RADIUS = 15
+RADIUS = 35
 
 @functools.lru_cache(maxsize=4096)
 def db_streets(srclat,srclon,destlat,destlon):
@@ -19,11 +19,13 @@ def db_streets(srclat,srclon,destlat,destlon):
     #print("candidatepairs " + repr(candidatepairs))
 
 #src.lat, src.lon,dest.lat,dest.lon 
-    cur.execute("""SELECT DISTINCT src.node_id,dest.node_id,ST_Y(src.geog::geometry),ST_X(src.geog::geometry),ST_Y(dest.geog::geometry),ST_X(dest.geog::geometry) FROM
-        (SELECT node_id,geog FROM highway_nodes WHERE ST_DWithin(geog,'POINT({:-f} {:-f})',{:-f})) AS src,
-        (SELECT node_id,geog FROM highway_nodes WHERE ST_DWithin(geog,'POINT({:-f} {:-f})',{:-f})) AS dest
-        WHERE (src.node_id != dest.node_id);""".format(srclon,srclat,RADIUS,destlon,destlat,RADIUS))
+    cur.execute("""SELECT DISTINCT src.node_id,dest.node_id,ST_Y(src.geog::geometry),ST_X(src.geog::geometry),ST_Y(dest.geog::geometry),ST_X(dest.geog::geometry)
+    FROM
+    (SELECT node_id,geog FROM highway_nodes WHERE ST_DWithin(geog,'POINT({:-f} {:-f})',{:-f})) AS src,
+    (SELECT node_id,geog FROM highway_nodes WHERE ST_DWithin(geog,'POINT({:-f} {:-f})',{:-f})) AS dest
+    WHERE (src.node_id != dest.node_id);""".format(srclon,srclat,RADIUS,destlon,destlat,RADIUS))
     candidatepairs = cur.fetchall()
+    ret = { 'found_way' : [] }
 
     # sort after deviation from the given coordinates
     for index,candidatepair in enumerate(sorted(candidatepairs,key=lambda c: abs(srclat-c[2]) + abs(srclon-c[3]) + abs(destlat-c[4]) + abs(destlon-c[5]))):
@@ -32,15 +34,14 @@ def db_streets(srclat,srclon,destlat,destlon):
             #FROM (ways JOIN way_nodes ON ways.id = way_nodes.way_id) AS a, way_nodes AS b
             #WHERE %s = a.node_id AND %s = b.node_id AND a.way_id = b.way_id""" % (candidatepair[0], candidatepair[1]))
         cur.execute("""SELECT DISTINCT a.way_id,a.way_tags,a.way_nodes,a.way_tags::hstore -> 'name',a.node_id AS srcnode, b.node_id AS destnode
-            FROM highway_nodes AS a,highway_nodes AS b
-            WHERE %s = a.node_id AND %s = b.node_id AND a.way_id = b.way_id""" % (candidatepair[0], candidatepair[1]))
+            FROM (SELECT b.node_id, b.way_id from highway_nodes AS b WHERE %s = b.node_id) AS b JOIN highway_nodes AS a ON b.way_id=a.way_id
+            WHERE %s = a.node_id""" % (candidatepair[0], candidatepair[1]))
         results = cur.fetchall()
-        ret = []
         if results:
             #print("Candidate chosen: " + repr(candidatepair))
             cur.close()
             for idx,result in enumerate(results):
-                ret.append ({
+                ret['found_way'].append ({
                     "wayid" : result[0],
                     "name" : result[3],
                     "tags" : result[1],
@@ -55,7 +56,8 @@ def db_streets(srclat,srclon,destlat,destlon):
                 })
             return ret;
     cur.close()
-'SRID=4326;POINT(9.1851113 48.8089539)'
+    return {'error' : len(candidatepairs)}
+
 @route('/')
 def hello():
     return "Usage: http://" + request.remote_route[-1] + "/streetname/?srclat=X&srclon=X&destlat=X&destlon=X"
@@ -68,12 +70,12 @@ def findways():
 
     results = db_streets(srclat,srclon,destlat,destlon)
 
-    if not results:
-        return({'errmsg' : 'no street found between coordinates (%f,%f) and (%f,%f)' % (srclat,srclon,destlat,destlon), 'errid' : 1})
+    if 'error' in results:
+        return({'errmsg' : 'no street found between coordinates (%f,%f) and (%f,%f), tried %d pairs' % (srclat,srclon,destlat,destlon,results['error']), 'errid' : 1})
     #print("Street(s) found: " + repr(results))
     #print(repr(results))
     #streets = {} #[{ 'wayid' : ret['wayid'], 'name' : ret['name'], 'tags' : ret['tags'], 'nodes' : ret['nodes'], 'sourcenode' : ret['sourcenode'], 'destnode'} for result in results]
-    return(json.dumps(ensure_ascii=False,  obj = {'streets' : results}))# if result[0] != None]}))
+    return(json.dumps(ensure_ascii=False,  obj = {'streets' : results['found_way']}))# if result[0] != None]}))
 
 bottle.debug(True)
 bottle.run(host='', port=8080, reloader=True,server='tornado')
