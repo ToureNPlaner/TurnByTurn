@@ -4,25 +4,18 @@ import sys
 import json
 import urllib.request
 
-if len(sys.argv) != 3:
-    print(sys.argv[0] + " (url) (filename of json response)")
+if len(sys.argv) != 4:
+    print(sys.argv[0] + " (url) (filename of json response) (normal|gpx)")
     exit(1)
 
+if sys.argv[3] in ['normal','gpx']:
+    mode = sys.argv[3]
+else:
+    print("correct mode please")
+    exit (1)
 jsonfile = open(sys.argv[2])
 jsoncontent = json.loads(jsonfile.read())
 jsonfile.close()
-
-#streets =
-#[
-    #{
-        #'name' : 'asdstraße',
-        #'deviance' : [1,3,5],
-        #'coordinates' : [((48.1, 9.3), (48.2, 9.4)),((48.3, 9.4), (48.4, 9.5))]
-    #},
-    #{
-        #...
-    #}
-#]
 
 streets = []
 for subway in jsoncontent['way']:
@@ -33,8 +26,8 @@ for subway in jsoncontent['way']:
         response = json.loads(r.read().decode("utf-8"))
         #print("response from the server: " + repr(response))
         if not 'errmsg' in response:
-            # we take the street with the smallest = best confidence
-            streetname = min(response['streets'], key=lambda x: x['deviance'])
+            # we take the street with smallest deviation from the given coordinates
+            streetname = min(response['streets'], key=lambda x: x['srcdeviation'] + x['destdeviation'])
             #print("received streets: " + repr(response['streets']))
             #print("received street with best confidence: " + repr(streetname))
 
@@ -47,25 +40,48 @@ for subway in jsoncontent['way']:
             # if the street is actually a part of the street in the last step we add this part to the street
             if  len(streets) > 0 and name == streets[-1]['name']:
                 # add new coordinates and confidence to our street (some_list[-1] => last element in python)
-                streets[-1]['deviance'].append(streetname['deviance'])
-                streets[-1]['coordinates'].append(((streetname['srclat'],streetname['srclon']),(streetname['destlat'],streetname['destlon'])))
+                #only add the destination since the source SHOULD be the same as the destination of the last point in this street
+                streets[-1]['coordinates'].append(
+                    {'lat': streetname['destlat'],
+                     'lon':streetname['destlon'],
+                     'deviation': streetname['destdeviation']
+                    })
             else:
                 streets.append({
                         'name' : name,
-                        'deviance' : [streetname['deviance']],
-                        'coordinates' : [((streetname['srclat'],streetname['srclon']),(streetname['destlat'],streetname['destlon']))]
+                        'coordinates' : [
+                            {'lat': streetname['srclat'],
+                             'lon': streetname['srclon'],
+                              'deviation': streetname['srcdeviation']},
+                            {'lat': streetname['destlat'],
+                             'lon': streetname['destlon'],
+                              'deviation': streetname['destdeviation']}]
                     })
         else:
-            #if you don't want to print errors that the was just not found
+            #error messages would break xml
+            if mode != 'gpx':
             #if response['errid'] != 1:
-                # i assume this is normal at intersections where tourenplaner's result include the endpoint of another street that is not on the actual street
+                # TODO: why?
                 print("Error "+str(response['errid'])+"! (Message: \"" + response['errmsg']+"\")")
 
-print("Your way:")
-for street in streets:
-    deviance = round(sum(street['deviance'])*10000/len(street['deviance']),1)
-    coordinates = str(repr(street['coordinates']))
-    # if it is > 10 (number is arbitrary) then it's too far from our coordinates
-    #if deviance < 10:
-    print(str(deviance), street['name'])
-    #print(coordinates)
+if mode == 'gpx':
+    print("""<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<gpx xmlns="http://www.topografix.com/GPX/1/1" creator="byHand" version="1.1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">""")
+    for street in streets:
+        print("    <rte>")
+        for c in street['coordinates']:
+            deviation=str(round(c['deviation'],1))
+            #print('        <rtept lat="'+str(c['lat'])+'" lon="'+str(c['lon'])+'"><name>'+street['name']+'</name><desc>'+deviation+'</desc></rtept>')
+            print('        <rtept lat="'+str(c['lat'])+'" lon="'+str(c['lon'])+'"><name>'+deviation+'</name></rtept>')
+        print("    </rte>")
+    print("</gpx>")
+else:
+    print("Your way (<average deviation> <name>):")
+    for street in streets:
+        deviationsum = sum([d['deviation'] for d in street['coordinates']])
+        deviation = round(deviationsum/len(street['coordinates']),1)
+        #coordinates = [(c['lat'], c['lon']) for c in street['coordinates']]
+        print(str(deviation), street['name'])
+        #print(repr(coordinates))
