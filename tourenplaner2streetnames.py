@@ -67,5 +67,5 @@ for street in streets:
     coordinates = str(repr(street['coordinates']))
     # if it is > 10 (number is arbitrary) then it's too far from our coordinates
     if deviance < 10:
-        print(str(confidence), street['name'])
+        print(str(deviance), street['name'])
     #print(coordinates)
