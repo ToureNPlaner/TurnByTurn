@@ -63,9 +63,9 @@ for subway in jsoncontent['way']:
 
 print("Your way:")
 for street in streets:
-    deviance = round(sum(street['deviance'])*100000/len(street['deviance']),1)
+    deviance = round(sum(street['deviance'])*10000/len(street['deviance']),1)
     coordinates = str(repr(street['coordinates']))
     # if it is > 10 (number is arbitrary) then it's too far from our coordinates
-    if deviance < 10:
-        print(str(deviance), street['name'])
+    #if deviance < 10:
+    print(str(deviance), street['name'])
     #print(coordinates)

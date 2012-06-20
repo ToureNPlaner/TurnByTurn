@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-import psycopg2, bottle, json, functools
-from bottle import route, install, template, request
+import psycopg2, bottle, json
+from bottle import route, request
+from functools import lru_cache
 
 conn = psycopg2.connect("dbname=gis user=osm")
 RADIUS = 15
 
-@functools.lru_cache(maxsize=4096)
+@lru_cache(maxsize=4096)
 def db_streets(srclat,srclon,destlat,destlon):
     cur = conn.cursor() #multithreaded on one cursor probably doesn't work, so each thread doing a database connection gets a new one
     
@@ -33,14 +34,14 @@ def db_streets(srclat,srclon,destlat,destlon):
                 "nodes" : found_way[0][7],
                 "sourcenode" : found_way[0][0],
                 "destnode" : found_way[1][0],
-                "deviance" : abs(srclat-found_way[0][1]) + abs(srclon-found_way[0][2]) + abs(destlat-found_way[1][1]) + abs(destlon-found_way[1][2]),
+                "deviance" : abs(srclat-found_way[0][1]) + abs(srclon-found_way[0][2])*5 + abs(destlat-found_way[1][1]) + abs(destlon-found_way[1][2])*5,
                 "srclat" : found_way[0][1],
                 "srclon" : found_way[0][2],
                 "destlat" : found_way[1][1],
                 "destlon" : found_way[1][2]
             })
-            print("deviance: " + str(abs(srclat-found_way[0][1]) + abs(srclon-found_way[0][2])*5 + abs(destlat-found_way[1][1]) + abs(destlon-found_way[1][2])*5))
-        return ret;
+            #print("deviance: " + str(abs(srclat-found_way[0][1]) + abs(srclon-found_way[0][2])*5 + abs(destlat-found_way[1][1]) + abs(destlon-found_way[1][2])*5))
+        return ret
     else:
         return {'errid': 1, 'src' : len(src), 'dest' : len(dest)}
 
