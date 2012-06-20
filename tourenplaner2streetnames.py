@@ -16,7 +16,7 @@ jsonfile.close()
 #[
     #{
         #'name' : 'asdstraße',
-        #'confidence' : [1,3,5],
+        #'deviance' : [1,3,5],
         #'coordinates' : [((48.1, 9.3), (48.2, 9.4)),((48.3, 9.4), (48.4, 9.5))]
     #},
     #{
@@ -34,7 +34,7 @@ for subway in jsoncontent['way']:
         #print("response from the server: " + repr(response))
         if not 'errmsg' in response:
             # we take the street with the smallest = best confidence
-            streetname = min(response['streets'], key=lambda x: x['confidence'])
+            streetname = min(response['streets'], key=lambda x: x['deviance'])
             #print("received streets: " + repr(response['streets']))
             #print("received street with best confidence: " + repr(streetname))
 
@@ -47,12 +47,12 @@ for subway in jsoncontent['way']:
             # if the street is actually a part of the street in the last step we add this part to the street
             if  len(streets) > 0 and name == streets[-1]['name']:
                 # add new coordinates and confidence to our street (some_list[-1] => last element in python)
-                streets[-1]['confidence'].append(streetname['confidence'])
+                streets[-1]['deviance'].append(streetname['deviance'])
                 streets[-1]['coordinates'].append(((streetname['srclat'],streetname['srclon']),(streetname['destlat'],streetname['destlon'])))
             else:
                 streets.append({
                         'name' : name,
-                        'confidence' : [streetname['confidence']],
+                        'deviance' : [streetname['deviance']],
                         'coordinates' : [((streetname['srclat'],streetname['srclon']),(streetname['destlat'],streetname['destlon']))]
                     })
         else:
@@ -63,7 +63,9 @@ for subway in jsoncontent['way']:
 
 print("Your way:")
 for street in streets:
-    confidence = str(round(sum(street['confidence'])/len(street['confidence']),1))
+    deviance = round(sum(street['deviance'])*100000/len(street['deviance']),1)
     coordinates = str(repr(street['coordinates']))
-    print(confidence, street['name'])
+    # if it is > 10 (number is arbitrary) then it's too far from our coordinates
+    if deviance < 10:
+        print(str(confidence), street['name'])
     #print(coordinates)
