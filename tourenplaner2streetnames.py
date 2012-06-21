@@ -4,11 +4,13 @@ import sys
 import json
 import urllib.request
 
-if len(sys.argv) != 4:
-    print(sys.argv[0] + " (url) (filename of json response) (normal|gpx)")
+if len(sys.argv) not in  [3,4]:
+    print(sys.argv[0] + " (url) (filename of json response) [normal|gpx]")
     exit(1)
 
-if sys.argv[3] in ['normal','gpx']:
+if len(sys.argv) == 3:
+    mode = 'normal'
+elif sys.argv[3] in ['normal','gpx']:
     mode = sys.argv[3]
 else:
     print("correct mode please")
@@ -74,7 +76,8 @@ if mode == 'gpx':
         for c in street['coordinates']:
             deviation=str(round(c['deviation'],1))
             #print('        <rtept lat="'+str(c['lat'])+'" lon="'+str(c['lon'])+'"><name>'+street['name']+'</name><desc>'+deviation+'</desc></rtept>')
-            print('        <rtept lat="'+str(c['lat'])+'" lon="'+str(c['lon'])+'"><name>'+deviation+'</name></rtept>')
+            print('        <rtept lat="'+str(c['lat'])+'" lon="'+str(c['lon'])+'"><name>'+deviation+' ('
+            +street['name']+')</name></rtept>')
         print("    </rte>")
     print("</gpx>")
 else:
