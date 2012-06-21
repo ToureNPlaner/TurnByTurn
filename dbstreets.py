@@ -23,13 +23,13 @@ def db_streets(srclat,srclon,destlat,destlon):
     #print("dest: " + repr(dest))
 
     # create src-dest pairs and sort after added deviation from the given coordinates
-    candidates = sorted([(srcnode,destnode) for srcnode in src for destnode in dest if srcnode[0] != destnode[0] and srcnode[3] == destnode[3]],key=lambda c: abs(srclat-c[0][1]) + abs(srclon-c[0][2])*5 + abs(destlat-c[1][1]) + abs(destlon-c[1][2])*5)
+    candidates = sorted([(srcnode,destnode) for srcnode in src for destnode in dest if srcnode[0] != destnode[0] and srcnode[3] == destnode[3]],key=lambda c: c[0][9] + c[1][6])
     if len(candidates) > 0:
         ret = { 'found_way' : [] }
         for found_way in candidates:
             ret['found_way'].append ({
                 "wayid" : found_way[0][3],
-                "name" : found_way[0][4] if found_way[0][4] != None else found_way[0][5],
+                "name" : found_way[0][4] if found_way[0][4] else found_way[0][5],
                 "tags" : found_way[0][6],
                 "nodes" : found_way[0][7],
                 "sourcenode" : found_way[0][0],
