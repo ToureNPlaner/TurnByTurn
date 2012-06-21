@@ -19,6 +19,7 @@ jsonfile = open(sys.argv[2])
 jsoncontent = json.loads(jsonfile.read())
 jsonfile.close()
 
+noway=[]
 streets = []
 for subway in jsoncontent['way']:
     for i in range(0, len(subway)-1,1):
@@ -27,7 +28,14 @@ for subway in jsoncontent['way']:
         r = urllib.request.urlopen(url)
         response = json.loads(r.read().decode("utf-8"))
         #print("response from the server: " + repr(response))
-        if not 'errmsg' in response:
+
+        if 'errmsg' in response:
+            if response['errid'] == 1:
+                if mode == 'gpx':
+                    noway.append(((response['srclat'],response['srclon']),(response['destlat'],response['destlon'])))
+                else:
+                    print("Error "+str(response['errid'])+"! (Message: \"" + response['errmsg']+"\")")
+        else:
             # we take the street with smallest deviation from the given coordinates
             streetname = min(response['streets'], key=lambda x: x['srcdeviation'] + x['destdeviation'])
             #print("received streets: " + repr(response['streets']))
@@ -59,12 +67,6 @@ for subway in jsoncontent['way']:
                              'lon': streetname['destlon'],
                               'deviation': streetname['destdeviation']}]
                     })
-        else:
-            #error messages would break xml
-            if mode != 'gpx':
-            #if response['errid'] != 1:
-                # TODO: why?
-                print("Error "+str(response['errid'])+"! (Message: \"" + response['errmsg']+"\")")
 
 if mode == 'gpx':
     print("""<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
@@ -79,6 +81,9 @@ if mode == 'gpx':
             print('        <rtept lat="'+str(c['lat'])+'" lon="'+str(c['lon'])+'"><name>'+deviation+' ('
             +street['name']+')</name></rtept>')
         print("    </rte>")
+    for index,nw in enumerate(noway):
+        print("    <wpt lat=\""+str(nw[0][0])+"\" lon=\""+str(nw[0][1])+"\"><name>"+str(index)+"</name></wpt>")
+        print("    <wpt lat=\""+str(nw[1][0])+"\" lon=\""+str(nw[1][1])+"\"><name>"+str(index)+"</name></wpt>")
     print("</gpx>")
 else:
     print("Your way (<average deviation> <name>):")

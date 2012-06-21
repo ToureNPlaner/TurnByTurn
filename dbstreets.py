@@ -61,8 +61,12 @@ def findways():
 
     if 'errid' in results:
         return(
-            {'errmsg' : 'no street found between coordinates (%f,%f) and (%f,%f), looked at nodes: (src: #%d, dest: #%d)' % (srclat,srclon,destlat,destlon,results['src'],results['dest']),
-            'errid' : results['errid']})
+            {'errid' : results['errid'],
+             'srclat': srclat,
+             'srclon': srclon,
+             'destlat': destlat,
+             'destlon': destlon,
+             'errmsg' : 'no street found between coordinates (%f,%f) and (%f,%f), looked at nodes: (src: #%d, dest: #%d)' % (srclat,srclon,destlat,destlon,results['src'],results['dest'])})
     #print("Street(s) found: " + repr(results))
     #print(repr(results))
     #streets = {} #[{ 'wayid' : ret['wayid'], 'name' : ret['name'], 'tags' : ret['tags'], 'nodes' : ret['nodes'], 'sourcenode' : ret['sourcenode'], 'destnode'} for result in results]
