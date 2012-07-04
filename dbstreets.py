@@ -44,33 +44,83 @@ def db_streets(srclat,srclon,destlat,destlon):
             #print("deviation: " + str(abs(srclat-found_way[0][1]) + abs(srclon-found_way[0][2])*5 + abs(destlat-found_way[1][1]) + abs(destlon-found_way[1][2])*5))
         return ret
     else:
-        return {'errid': 1, 'src' : len(src), 'dest' : len(dest)}
+        return {'errid': 1, 'srcnum' : len(src), 'destnum' : len(dest)}
 
 @route('/')
 def hello():
     return "Usage: http://" + request.remote_route[-1] + "/streetname/?srclat=X&srclon=X&destlat=X&destlon=X"
 
-@route('/streetname/')
+@route('/streetname/',method='POST')
 def findways():
-    srclat = float(request.params.get("srclat"))
-    srclon = float(request.params.get("srclon"))
-    destlat = float(request.params.get("destlat"))
-    destlon = float(request.params.get("destlon"))
+    print(repr(request.forms.tourenplanerjson))
+    content = json.loads(request.forms.tourenplanerjson)
 
-    results = db_streets(srclat,srclon,destlat,destlon)
+    noway=[]
+    waystreets = []
+    for subway in content['way']:
+        for i in range(0, len(subway)-1,1):
+            #TODO: nicer int to float coordinates
+            #url = sys.argv[1]+"?srclat=%f&srclon=%f&destlat=%f&destlon=%f" % (float("0."+str(subway[i]['lt']))*100, float("0."+str(subway[i]['ln']))*10, float("0."+str(subway[i+1]['lt']))*100, float("0."+str(subway[i+1]['ln']))*10)
 
-    if 'errid' in results:
-        return(
-            {'errid' : results['errid'],
-             'srclat': srclat,
-             'srclon': srclon,
-             'destlat': destlat,
-             'destlon': destlon,
-             'errmsg' : 'no street found between coordinates (%f,%f) and (%f,%f), looked at nodes: (src: #%d, dest: #%d)' % (srclat,srclon,destlat,destlon,results['src'],results['dest'])})
+            (srclat,srclon,destlat,destlon) = (float("0."+str(subway[i]['lt']))*100, float("0."+str(subway[i]['ln']))*10, float("0."+str(subway[i+1]['lt']))*100, float("0."+str(subway[i+1]['ln']))*10)
+
+            foundstreets = db_streets(srclat,srclon,destlat,destlon)
+            if 'errid' in foundstreets:
+                noway.append(((srclat,srclon),(destlat,destlon)))
+                continue
+                #if 'errmsg' in response:
+                    #if response['errid'] == 1:
+                        #if mode == 'gpx':
+                            #noway.append(((response['srclat'],response['srclon']),(response['destlat'],response['destlon'])))
+                        #else:
+                            #print("Error "+str(response['errid'])+"! (Message: \"" + response['errmsg']+"\")")
+
+
+            foundstreets = sorted(foundstreets['found_way'], key=lambda x: x['srcdeviation'] + x['destdeviation'])
+            street = foundstreets[0]
+            name = street['name'] if street['name'] != None else "[?]"
+            # if the street is actually a part of the street in the last step we add this part to the street
+            if  len(waystreets) > 0 and name == waystreets[-1]['name']:
+                # add new coordinates and confidence to our street (some_list[-1] => last element in python)
+                #only add the destination since the source SHOULD be the same as the destination of the last point in this street
+                waystreets[-1]['coordinates'].append(
+                    {'lat': street['destlat'],
+                    'lon':street['destlon'],
+                    'deviation': street['destdeviation']
+                    })
+            else:
+                waystreets.append({
+                        'name' : name,
+                        'coordinates' : [
+                            {'lat': street['srclat'],
+                            'lon': street['srclon'],
+                            'deviation': street['srcdeviation']},
+                            {'lat': street['destlat'],
+                            'lon': street['destlon'],
+                            'deviation': street['destdeviation']}]
+                    })
+
+            
+    
+    #srclat = float(request.params.get("srclat"))
+    #srclon = float(request.params.get("srclon"))
+    #destlat = float(request.params.get("destlat"))
+    #destlon = float(request.params.get("destlon"))
+
+    #results = db_streets(srclat,srclon,destlat,destlon)
+
+    #if 'errid' in results:
+        #return(
+            #{'errid' : results['errid'],
+             #'srclat': srclat,
+             #'srclon': srclon,
+             #'destlat': destlat,
+             #'destlon': destlon,
+             #'errmsg' : 'no street found between coordinates (%f,%f) and (%f,%f), looked at nodes: (src: #%d, dest: #%d)' % (srclat,srclon,destlat,destlon,results['src'],results['dest'])})
     #print("Street(s) found: " + repr(results))
     #print(repr(results))
     #streets = {} #[{ 'wayid' : ret['wayid'], 'name' : ret['name'], 'tags' : ret['tags'], 'nodes' : ret['nodes'], 'sourcenode' : ret['sourcenode'], 'destnode'} for result in results]
-    return(json.dumps(ensure_ascii=False,  obj = {'streets' : results['found_way']}))# if result[0] != None]}))
+    return(json.dumps(ensure_ascii=False,  obj = {'streets' : waystreets, 'failed' : noway}))# if result[0] != None]}))
 
 bottle.debug(True)
 bottle.run(host='', port=8080, reloader=True,server='tornado')
