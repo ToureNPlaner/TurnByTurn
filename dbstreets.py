@@ -52,7 +52,7 @@ def hello():
 
 @route('/streetname/',method='POST')
 def findways():
-    print(repr(request.forms.tourenplanerjson))
+    #print(repr(request.forms.tourenplanerjson))
     content = json.loads(request.forms.tourenplanerjson)
 
     noway=[]
@@ -60,13 +60,17 @@ def findways():
     for subway in content['way']:
         for i in range(0, len(subway)-1,1):
             #TODO: nicer int to float coordinates
-            #url = sys.argv[1]+"?srclat=%f&srclon=%f&destlat=%f&destlon=%f" % (float("0."+str(subway[i]['lt']))*100, float("0."+str(subway[i]['ln']))*10, float("0."+str(subway[i+1]['lt']))*100, float("0."+str(subway[i+1]['ln']))*10)
-
             (srclat,srclon,destlat,destlon) = (float("0."+str(subway[i]['lt']))*100, float("0."+str(subway[i]['ln']))*10, float("0."+str(subway[i+1]['lt']))*100, float("0."+str(subway[i+1]['ln']))*10)
 
             foundstreets = db_streets(srclat,srclon,destlat,destlon)
             if 'errid' in foundstreets:
-                noway.append(((srclat,srclon),(destlat,destlon)))
+                noway.append({
+                    'srclat' : srclat,
+                    'srclon' : srclon,
+                    'srcnum' : foundstreets['srcnum'],
+                    'destlat' : destlat,
+                    'destlon' : destlon,
+                    'destnum' : foundstreets['destnum']})
                 continue
                 #if 'errmsg' in response:
                     #if response['errid'] == 1:
@@ -100,27 +104,7 @@ def findways():
                             'deviation': street['destdeviation']}]
                     })
 
-            
-    
-    #srclat = float(request.params.get("srclat"))
-    #srclon = float(request.params.get("srclon"))
-    #destlat = float(request.params.get("destlat"))
-    #destlon = float(request.params.get("destlon"))
-
-    #results = db_streets(srclat,srclon,destlat,destlon)
-
-    #if 'errid' in results:
-        #return(
-            #{'errid' : results['errid'],
-             #'srclat': srclat,
-             #'srclon': srclon,
-             #'destlat': destlat,
-             #'destlon': destlon,
-             #'errmsg' : 'no street found between coordinates (%f,%f) and (%f,%f), looked at nodes: (src: #%d, dest: #%d)' % (srclat,srclon,destlat,destlon,results['src'],results['dest'])})
-    #print("Street(s) found: " + repr(results))
-    #print(repr(results))
-    #streets = {} #[{ 'wayid' : ret['wayid'], 'name' : ret['name'], 'tags' : ret['tags'], 'nodes' : ret['nodes'], 'sourcenode' : ret['sourcenode'], 'destnode'} for result in results]
-    return(json.dumps(ensure_ascii=False,  obj = {'streets' : waystreets, 'failed' : noway}))# if result[0] != None]}))
+    return(json.dumps(ensure_ascii=False,  obj = {'streets' : waystreets, 'failed' : noway}))
 
 bottle.debug(True)
 bottle.run(host='', port=8080, reloader=True,server='tornado')

@@ -45,8 +45,8 @@ if mode == 'gpx':
             +street['name']+')</name></rtept>')
         print("    </rte>")
     for index,nw in enumerate(noway):
-        print("    <wpt lat=\""+str(nw[0][0])+"\" lon=\""+str(nw[0][1])+"\"><name>"+str(index)+"</name></wpt>")
-        print("    <wpt lat=\""+str(nw[1][0])+"\" lon=\""+str(nw[1][1])+"\"><name>"+str(index)+"</name></wpt>")
+        print("    <wpt lat=\""+str(nw['srclat'])+"\" lon=\""+str(nw['srclon'])+"\"><name>"+str(index) + " (" + str(nw['srcnum']) +")</name></wpt>")
+        print("    <wpt lat=\""+str(nw['destlat'])+"\" lon=\""+str(nw['destlon'])+"\"><name>"+str(index) + "(" + str(nw['destnum'])+")</name></wpt>")
     print("</gpx>")
 else:
     print("Your way (<average deviation> <name>):")
