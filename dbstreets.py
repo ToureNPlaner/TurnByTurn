@@ -56,26 +56,18 @@ def findways():
     waystreets = []
     for subway in content['way']:
         for i in range(0, len(subway)-1,1):
-            #TODO: nicer int to float coordinates
             (srclat,srclon,destlat,destlon) = subway[i]['lt']/COORD_DIV, subway[i]['ln']/COORD_DIV, subway[i+1]['lt']/COORD_DIV, subway[i+1]['ln']/COORD_DIV
 
             foundstreets = db_streets(cur,srclat,srclon,destlat,destlon)
+
+            #TODO: this is now a lookup in a list(), thus unnecessarily slow
             if 'errid' in foundstreets:
                 noway.append({
                     'srclat' : srclat,
                     'srclon' : srclon,
-                    'srcnum' : foundstreets['srcnum'],
                     'destlat' : destlat,
-                    'destlon' : destlon,
-                    'destnum' : foundstreets['destnum']})
+                    'destlon' : destlon,})
                 continue
-                #if 'errmsg' in response:
-                    #if response['errid'] == 1:
-                        #if mode == 'gpx':
-                            #noway.append(((response['srclat'],response['srclon']),(response['destlat'],response['destlon'])))
-                        #else:
-                            #print("Error "+str(response['errid'])+"! (Message: \"" + response['errmsg']+"\")")
-
 
             foundstreets = sorted(foundstreets, key=lambda x: x['srcdeviation'] + x['destdeviation'])
             street = foundstreets[0]
