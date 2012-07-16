@@ -4,7 +4,7 @@ from bottle import route, request
 from functools import lru_cache
 
 conn = psycopg2.connect("dbname=bw user=osm")
-NN_NUM = 10
+NN_NUM = 7
 COORD_DIV=10.0**7
 
 @lru_cache(maxsize=1024)
@@ -28,7 +28,7 @@ def db_streets(cur,srclat,srclon,destlat,destlon):
         return {'errid': 1, 'srcnum' : len(src), 'destnum' : len(dest)}
     else:
         return [{    "wayid" : found_way[0][3],
-                    "name" : found_way[0][4] if found_way[0][4] else found_way[0][5],
+                    "name" : found_way[0][4] if found_way[0][4] else found_way[0][5] if found_way[0][5] else "??",
                     "tags" : found_way[0][6],
                     "nodes" : found_way[0][7],
                     "sourcenode" : found_way[0][0],
@@ -71,9 +71,33 @@ def findways():
 
             foundstreets = sorted(foundstreets, key=lambda x: x['srcdeviation'] + x['destdeviation'])
             street = foundstreets[0]
-            name = street['name'] if street['name'] != None else "[?]"
+            if len(waystreets) > 0 and street['srcdeviation'] + street['destdeviation'] > 8:
+
+                # try to use a continuation of the last street, but only if the coordinates are not close enaugh
+                #lastname =     waystreets[-1]['name']
+                #filtered = list(filter(lambda x: x['name'] == lastname, foundstreets))
+                #if filtered:
+                #    street = filtered[0]
+
+                # just pretend there is a node that is part of the last street
+                # TODO: maybe not
+                street = {
+                    "wayid" : -1,
+                    "name" : waystreets[-1]['name'],
+                    "tags" : [],
+                    "nodes" : [],
+                    "sourcenode" : -1,
+                    "destnode" : -1,
+                    "srcdeviation" : -1,
+                    "destdeviation" : -1,
+                    "srclat" : srclat,
+                    "srclon" : srclon,
+                    "destlat" : destlat,
+                    "destlon" : destlon
+                }
+
             # if the street is actually a part of the street in the last step we add this part to the street
-            if  len(waystreets) > 0 and name == waystreets[-1]['name']:
+            if  len(waystreets) > 0 and street['name'] == waystreets[-1]['name']:
                 # add new coordinates and confidence to our street (some_list[-1] => last element in python)
                 #only add the destination since the source SHOULD be the same as the destination of the last point in this street
                 waystreets[-1]['coordinates'].append(
@@ -83,7 +107,7 @@ def findways():
                     })
             else:
                 waystreets.append({
-                        'name' : name,
+                        'name' : street['name'],
                         'coordinates' : [
                             {'lat': street['srclat'],
                             'lon': street['srclon'],
