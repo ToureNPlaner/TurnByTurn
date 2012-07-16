@@ -7,8 +7,7 @@ conn = psycopg2.connect("dbname=bw user=osm")
 NN_NUM = 10
 
 @lru_cache(maxsize=1024)
-def db_streets(srclat,srclon,destlat,destlon):
-    cur = conn.cursor() #multithreaded on one cursor probably doesn't work, so each thread doing a database connection gets a new one
+def db_streets(cur,srclat,srclon,destlat,destlon):
     
     cur.execute("""SELECT node_id,ST_Y(geog::geometry),ST_X(geog::geometry),way_id,way_tags -> 'name',way_tags -> 'ref',way_nodes,way_tags,sequence_id,ST_Distance('POINT({:-f} {:-f})',geog)
         FROM highway_nodes
@@ -18,7 +17,7 @@ def db_streets(srclat,srclon,destlat,destlon):
         FROM highway_nodes
         ORDER BY geom <#> ST_GeomFromEWKT('SRID=4326;POINT({:-f} {:-f})') LIMIT {:d}""".format(destlon,destlat,destlon,destlat,NN_NUM))
     dest = cur.fetchall()
-
+    
     #print("src: " + repr(src))
     #print("dest: " + repr(dest))
 
@@ -55,6 +54,8 @@ def findways():
     #print(repr(request.forms.tourenplanerjson))
     content = json.loads(request.forms.tourenplanerjson)
 
+    cur = conn.cursor() #multithreaded on one cursor probably doesn't work, so each thread doing a database connection gets a new one
+
     noway=[]
     waystreets = []
     for subway in content['way']:
@@ -62,7 +63,7 @@ def findways():
             #TODO: nicer int to float coordinates
             (srclat,srclon,destlat,destlon) = (float("0."+str(subway[i]['lt']))*100, float("0."+str(subway[i]['ln']))*10, float("0."+str(subway[i+1]['lt']))*100, float("0."+str(subway[i+1]['ln']))*10)
 
-            foundstreets = db_streets(srclat,srclon,destlat,destlon)
+            foundstreets = db_streets(cur,srclat,srclon,destlat,destlon)
             if 'errid' in foundstreets:
                 noway.append({
                     'srclat' : srclat,
@@ -103,7 +104,7 @@ def findways():
                             'lon': street['destlon'],
                             'deviation': street['destdeviation']}]
                     })
-
+    cur.close()
     return(json.dumps(ensure_ascii=False,  obj = {'streets' : waystreets, 'failed' : noway}))
 
 bottle.debug(True)
