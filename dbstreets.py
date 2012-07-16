@@ -5,6 +5,7 @@ from functools import lru_cache
 
 conn = psycopg2.connect("dbname=bw user=osm")
 NN_NUM = 10
+COORD_DIV=10.0**7
 
 @lru_cache(maxsize=1024)
 def db_streets(cur,srclat,srclon,destlat,destlon):
@@ -22,28 +23,23 @@ def db_streets(cur,srclat,srclon,destlat,destlon):
     #print("dest: " + repr(dest))
 
     # create src-dest pairs and sort after added deviation from the given coordinates
-    candidates = sorted([(srcnode,destnode) for srcnode in src for destnode in dest if srcnode[0] != destnode[0] and srcnode[3] == destnode[3]],key=lambda c: c[0][9] + c[1][6])
-    if len(candidates) > 0:
-        ret = { 'found_way' : [] }
-        for found_way in candidates:
-            ret['found_way'].append ({
-                "wayid" : found_way[0][3],
-                "name" : found_way[0][4] if found_way[0][4] else found_way[0][5],
-                "tags" : found_way[0][6],
-                "nodes" : found_way[0][7],
-                "sourcenode" : found_way[0][0],
-                "destnode" : found_way[1][0],
-                "srcdeviation" : found_way[0][9],
-                "destdeviation" : found_way[1][6],
-                "srclat" : found_way[0][1],
-                "srclon" : found_way[0][2],
-                "destlat" : found_way[1][1],
-                "destlon" : found_way[1][2]
-            })
-            #print("deviation: " + str(abs(srclat-found_way[0][1]) + abs(srclon-found_way[0][2])*5 + abs(destlat-found_way[1][1]) + abs(destlon-found_way[1][2])*5))
-        return ret
-    else:
+    streetparts = sorted([(srcnode,destnode) for srcnode in src for destnode in dest if srcnode[0] != destnode[0] and srcnode[3] == destnode[3]],key=lambda c: c[0][9] + c[1][6])
+    if not streetparts:
         return {'errid': 1, 'srcnum' : len(src), 'destnum' : len(dest)}
+    else:
+        return [{    "wayid" : found_way[0][3],
+                    "name" : found_way[0][4] if found_way[0][4] else found_way[0][5],
+                    "tags" : found_way[0][6],
+                    "nodes" : found_way[0][7],
+                    "sourcenode" : found_way[0][0],
+                    "destnode" : found_way[1][0],
+                    "srcdeviation" : found_way[0][9],
+                    "destdeviation" : found_way[1][6],
+                    "srclat" : found_way[0][1],
+                    "srclon" : found_way[0][2],
+                    "destlat" : found_way[1][1],
+                    "destlon" : found_way[1][2]
+                } for found_way in streetparts]
 
 @route('/')
 def hello():
@@ -61,7 +57,7 @@ def findways():
     for subway in content['way']:
         for i in range(0, len(subway)-1,1):
             #TODO: nicer int to float coordinates
-            (srclat,srclon,destlat,destlon) = (float("0."+str(subway[i]['lt']))*100, float("0."+str(subway[i]['ln']))*10, float("0."+str(subway[i+1]['lt']))*100, float("0."+str(subway[i+1]['ln']))*10)
+            (srclat,srclon,destlat,destlon) = subway[i]['lt']/COORD_DIV, subway[i]['ln']/COORD_DIV, subway[i+1]['lt']/COORD_DIV, subway[i+1]['ln']/COORD_DIV
 
             foundstreets = db_streets(cur,srclat,srclon,destlat,destlon)
             if 'errid' in foundstreets:
@@ -81,7 +77,7 @@ def findways():
                             #print("Error "+str(response['errid'])+"! (Message: \"" + response['errmsg']+"\")")
 
 
-            foundstreets = sorted(foundstreets['found_way'], key=lambda x: x['srcdeviation'] + x['destdeviation'])
+            foundstreets = sorted(foundstreets, key=lambda x: x['srcdeviation'] + x['destdeviation'])
             street = foundstreets[0]
             name = street['name'] if street['name'] != None else "[?]"
             # if the street is actually a part of the street in the last step we add this part to the street
