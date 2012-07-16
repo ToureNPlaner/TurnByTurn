@@ -3,8 +3,8 @@ import psycopg2, bottle, json
 from bottle import route, request
 from functools import lru_cache
 
-conn = psycopg2.connect("dbname=gis user=osm")
-RADIUS = 15
+conn = psycopg2.connect("dbname=bw user=osm")
+NN_NUM = 10
 
 @lru_cache(maxsize=1024)
 def db_streets(srclat,srclon,destlat,destlon):
@@ -12,11 +12,11 @@ def db_streets(srclat,srclon,destlat,destlon):
     
     cur.execute("""SELECT node_id,ST_Y(geog::geometry),ST_X(geog::geometry),way_id,way_tags -> 'name',way_tags -> 'ref',way_nodes,way_tags,sequence_id,ST_Distance('POINT({:-f} {:-f})',geog)
         FROM highway_nodes
-        WHERE ST_DWithin(geog,'POINT({:-f} {:-f})',{:-f});""".format(srclon,srclat,srclon,srclat,RADIUS))
+        ORDER BY geom <#> ST_GeomFromEWKT('SRID=4326;POINT({:-f} {:-f})') LIMIT {:d}""".format(srclon,srclat,srclon,srclat,NN_NUM))
     src = cur.fetchall()
     cur.execute("""SELECT node_id,ST_Y(geog::geometry),ST_X(geog::geometry),way_id,way_tags -> 'name',way_tags -> 'ref',ST_Distance('POINT({:-f} {:-f})',geog)
         FROM highway_nodes
-        WHERE ST_DWithin(geog,'POINT({:-f} {:-f})',{:-f});""".format(destlon,destlat,destlon,destlat,RADIUS))
+        ORDER BY geom <#> ST_GeomFromEWKT('SRID=4326;POINT({:-f} {:-f})') LIMIT {:d}""".format(destlon,destlat,destlon,destlat,NN_NUM))
     dest = cur.fetchall()
 
     #print("src: " + repr(src))
