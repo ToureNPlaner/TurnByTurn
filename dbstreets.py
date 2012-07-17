@@ -71,7 +71,7 @@ def findways():
 
             foundstreets = sorted(foundstreets, key=lambda x: x['srcdeviation'] + x['destdeviation'])
             street = foundstreets[0]
-            if len(waystreets) > 0 and street['srcdeviation'] + street['destdeviation'] > 8:
+            if len(waystreets) > 0 and street['srcdeviation'] + street['destdeviation'] > 10:
 
                 # try to use a continuation of the last street, but only if the coordinates are not close enaugh
                 #lastname =     waystreets[-1]['name']
@@ -109,12 +109,12 @@ def findways():
                 waystreets.append({
                         'name' : street['name'],
                         'coordinates' : [
-                            {'lat': street['srclat'],
-                            'lon': street['srclon'],
-                            'deviation': street['srcdeviation']},
-                            {'lat': street['destlat'],
-                            'lon': street['destlon'],
-                            'deviation': street['destdeviation']}]
+                            {'lat': waystreets[-1]['coordinates'][-1]['lat'],
+                             'lon':  waystreets[-1]['coordinates'][-1]['lon'],
+                             'deviation': waystreets[-1]['coordinates'][-1]['deviation'] + street['srcdeviation']} if len(waystreets) > 0
+                                else {'lat': street['srclat'], 'lon': street['srclon'], 'deviation': street['srcdeviation']},
+                            {'lat': street['destlat'], 'lon': street['destlon'], 'deviation': street['destdeviation']}
+                        ]
                     })
     cur.close()
     return(json.dumps(ensure_ascii=False,  obj = {'streets' : waystreets, 'failed' : noway}))
