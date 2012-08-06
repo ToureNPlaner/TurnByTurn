@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import psycopg2, bottle, json
-from bottle import route, request
+from bottle import route, request, response
 from functools import lru_cache
 
 conn = psycopg2.connect("dbname=bw user=osm")
@@ -47,14 +47,14 @@ def hello():
 
 @route('/streetname/',method='POST')
 def findways():
-    #print(repr(request.forms.tourenplanerjson))
-    content = json.loads(request.forms.tourenplanerjson)
-
+    #[print("key: " + str(key) + "\ndata: " + repr(request.forms[key]\n\n)) for key in request.forms.keys()]
+    content = json.loads(request.forms.nodes)
+    print("/streetname/ called with \"nodes\": " + str(content))
     cur = conn.cursor() #multithreaded on one cursor probably doesn't work, so each thread doing a database connection gets a new one
 
     noway=[]
     waystreets = []
-    for subway in content['way']:
+    for subway in content:
         for i in range(0, len(subway)-1,1):
             (srclat,srclon,destlat,destlon) = subway[i]['lt']/COORD_DIV, subway[i]['ln']/COORD_DIV, subway[i+1]['lt']/COORD_DIV, subway[i+1]['ln']/COORD_DIV
 
@@ -101,23 +101,26 @@ def findways():
                 # add new coordinates and confidence to our street (some_list[-1] => last element in python)
                 #only add the destination since the source SHOULD be the same as the destination of the last point in this street
                 waystreets[-1]['coordinates'].append(
-                    {'lat': street['destlat'],
-                    'lon':street['destlon'],
+                    {'lt': street['destlat'],
+                    'ln':street['destlon'],
                     'deviation': street['destdeviation']
                     })
             else:
                 waystreets.append({
                         'name' : street['name'],
                         'coordinates' : [
-                            {'lat': waystreets[-1]['coordinates'][-1]['lat'],
-                             'lon':  waystreets[-1]['coordinates'][-1]['lon'],
+                            {'lt': waystreets[-1]['coordinates'][-1]['lt'],
+                             'ln':  waystreets[-1]['coordinates'][-1]['ln'],
                              'deviation': waystreets[-1]['coordinates'][-1]['deviation'] + street['srcdeviation']} if len(waystreets) > 0
-                                else {'lat': street['srclat'], 'lon': street['srclon'], 'deviation': street['srcdeviation']},
-                            {'lat': street['destlat'], 'lon': street['destlon'], 'deviation': street['destdeviation']}
+                                else {'lt': street['srclat'], 'ln': street['srclon'], 'deviation': street['srcdeviation']},
+                            {'lt': street['destlat'], 'ln': street['destlon'], 'deviation': street['destdeviation']}
                         ]
                     })
     cur.close()
-    return(json.dumps(ensure_ascii=False,  obj = {'streets' : waystreets, 'failed' : noway}))
+    result = {'streets' : waystreets, 'failed' : noway}
+    print("response: " + repr(result))
+    response.content_type = 'application/json; charset=utf8'
+    return(json.dumps(ensure_ascii=False,  obj = result))
 
 bottle.debug(True)
 bottle.run(host='', port=8080, reloader=True,server='tornado')

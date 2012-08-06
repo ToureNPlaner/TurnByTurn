@@ -18,12 +18,12 @@ else:
     exit (1)
 jsonfile = open(sys.argv[2])
 #jsoncontent = json.loads(jsonfile.read())
-jsoncontent = jsonfile.read()
+jsoncontent = json.loads(jsonfile.read())['way']
 jsonfile.close()
 
 url = sys.argv[1]
 
-r = urllib.request.urlopen(url, data = urllib.parse.urlencode({"tourenplanerjson": jsoncontent}).encode())
+r = urllib.request.urlopen(url, data = urllib.parse.urlencode({"nodes": json.dumps(jsoncontent)}).encode())
 
 response = json.loads(r.read().decode("utf-8"))
 #print(json.dumps(response,indent = 2))
@@ -41,7 +41,7 @@ if mode == 'gpx':
         for c in street['coordinates']:
             deviation=str(round(c['deviation'],1))
             #print('        <rtept lat="'+str(c['lat'])+'" lon="'+str(c['lon'])+'"><name>'+street['name']+'</name><desc>'+deviation+'</desc></rtept>')
-            print('        <rtept lat="'+str(c['lat'])+'" lon="'+str(c['lon'])+'"><name>'+deviation+' ('
+            print('        <rtept lat="'+str(c['lt'])+'" lon="'+str(c['ln'])+'"><name>'+deviation+' ('
             +street['name']+')</name></rtept>')
         print("    </rte>")
     for index,nw in enumerate(noway):
