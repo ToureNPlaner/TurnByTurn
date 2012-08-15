@@ -21,9 +21,11 @@ jsonfile = open(sys.argv[2])
 jsoncontent = json.loads(jsonfile.read())['way']
 jsonfile.close()
 
+tosend = [ [ (c['lt'], c['ln']) for c in subway ] for subway in jsoncontent ]
+
 url = sys.argv[1]
 
-r = urllib.request.urlopen(url, data = urllib.parse.urlencode({"nodes": json.dumps(jsoncontent)}).encode())
+r = urllib.request.urlopen(url, data = urllib.parse.urlencode({"nodes": json.dumps(tosend)}).encode())
 
 response = json.loads(r.read().decode("utf-8"))
 #print(json.dumps(response,indent = 2))
@@ -44,9 +46,10 @@ if mode == 'gpx':
             print('        <rtept lat="'+str(c['lt'])+'" lon="'+str(c['ln'])+'"><name>'+deviation+' ('
             +street['name']+')</name></rtept>')
         print("    </rte>")
-    for index,nw in enumerate(noway):
-        print("    <wpt lat=\""+str(nw['srclat'])+"\" lon=\""+str(nw['srclon'])+"\"><name>"+str(index)+"</name></wpt>")
-        print("    <wpt lat=\""+str(nw['destlat'])+"\" lon=\""+str(nw['destlon'])+"\"><name>"+str(index)+"</name></wpt>")
+    for now in noway:
+        for index,nw in enumerate(now):
+            print("    <wpt lat=\""+str(nw['srclat'])+"\" lon=\""+str(nw['srclon'])+"\"><name>"+str(index)+"</name></wpt>")
+            print("    <wpt lat=\""+str(nw['destlat'])+"\" lon=\""+str(nw['destlon'])+"\"><name>"+str(index)+"</name></wpt>")
     print("</gpx>")
 else:
     print("Your way (<average deviation> <name>):")
