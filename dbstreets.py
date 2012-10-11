@@ -3,7 +3,7 @@ import psycopg2, bottle, json
 from bottle import route, request, response
 from functools import lru_cache
 
-conn = psycopg2.connect("dbname=bw user=osm")
+conn = psycopg2.connect("dbname=gis user=osm")
 NN_NUM = 7
 COORD_DIV=10.0**7
 
@@ -22,7 +22,7 @@ def db_streets(cur,coordinatelist):
     # 9: way tags
     # 10: meter distance of osm point to given point
 
-    QRY = "\nUNION ALL\n".join(["(SELECT "+str(index)+", node_id,ST_Y(geog::geometry),ST_X(geog::geometry),way_id,way_tags -> 'name',way_tags -> 'ref',way_nodes,sequence_id,way_tags,ST_Distance('POINT("+str(c[1])+" "+str(c[0])+")',geog) FROM highway_nodes ORDER BY geom <#> ST_GeomFromEWKT('SRID=4326;POINT("+str(c[1])+" "+str(c[0])+")') LIMIT "+str(NN_NUM)+ ")" for index,c in enumerate(coordinatelist)])
+    QRY = "\nUNION ALL\n".join(["(SELECT "+str(index)+", node_id,ST_Y(geom),ST_X(geom),way_id,way_tags -> 'name',way_tags -> 'ref',way_nodes,sequence_id,way_tags,ST_Distance('POINT("+str(c[1])+" "+str(c[0])+")',geom::geography) FROM highway_nodes ORDER BY geom <#> ST_GeomFromEWKT('SRID=4326;POINT("+str(c[1])+" "+str(c[0])+")') LIMIT "+str(NN_NUM)+ ")" for index,c in enumerate(coordinatelist)])
 
     #print("qry:\n" + QRY)
     cur.execute(QRY)
@@ -108,7 +108,7 @@ def hello():
 def findways():
     #[print("key: " + str(key) + "\ndata: " + repr(request.forms[key]\n\n)) for key in request.forms.keys()]
     content = json.loads(request.forms.nodes)
-    print("/streetname/ called with \"nodes\": " + str(content))
+    print("/streetname/ called with \"nodes\": " + str(content)[:300])
     cur = conn.cursor() #multithreaded on one cursor probably doesn't work, so each thread doing a database connection gets a new one
 
     waystreets = []
@@ -116,7 +116,7 @@ def findways():
 
     for subway in content:
         coordinatelist = tuple( [ (c[0]/COORD_DIV, c[1]/COORD_DIV) for c in subway ] )
-        print ("coordinatelist: " + repr(coordinatelist))
+        print ("coordinatelist: " + repr(coordinatelist)[:300])
         ws, nw = db_streets(cur,coordinatelist)
         waystreets.append(ws)
         noway.append(nw)
@@ -172,7 +172,7 @@ def findways():
                     })
     cur.close()
     result = {'streets' : wayedges, 'failed' : noway}
-    print("response: " + repr(result))
+    print("response: " + repr(result)[:300])
     response.content_type = 'application/json; charset=utf8'
     return(json.dumps(ensure_ascii=False,  obj = result))
 
