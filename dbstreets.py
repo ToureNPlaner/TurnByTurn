@@ -22,7 +22,7 @@ def db_streets(cur,coordinatelist):
     # 9: way tags
     # 10: meter distance of osm point to given point
 
-    QRY = "\nUNION ALL\n".join(["(SELECT "+str(index)+", node_id,ST_Y(geom),ST_X(geom),way_id,way_tags -> 'name',way_tags -> 'ref',way_nodes,sequence_id,way_tags,ST_Distance('POINT("+str(c[1])+" "+str(c[0])+")',geom::geography) FROM highway_nodes ORDER BY geom <#> ST_GeomFromEWKT('SRID=4326;POINT("+str(c[1])+" "+str(c[0])+")') LIMIT "+str(NN_NUM)+ ")" for index,c in enumerate(coordinatelist)])
+    QRY = "\nUNION ALL\n".join(["(SELECT "+str(index)+", highway_nodes.id, ST_Y(highway_nodes.geom), ST_X(highway_nodes.geom), highway_ways.id, highway_ways.tags -> 'name', highway_ways.tags -> 'ref', highway_ways.nodes, highway_way_nodes.sequence_id, highway_ways.tags, ST_Distance('POINT("+str(c[1])+" "+str(c[0])+")',highway_nodes.geom::geography)     FROM highway_nodes JOIN highway_way_nodes ON highway_nodes.id = highway_way_nodes.node_id JOIN highway_ways ON highway_way_nodes.way_id = highway_ways.id ORDER BY highway_nodes.geom <#> ST_GeomFromEWKT('SRID=4326;POINT("+str(c[1])+" "+str(c[0])+")') LIMIT "+str(NN_NUM)+ ")" for index,c in enumerate(coordinatelist)])
 
     #print("qry:\n" + QRY)
     cur.execute(QRY)
@@ -106,7 +106,9 @@ def hello():
 
 @route('/streetname/',method='POST')
 def findways():
-    #[print("key: " + str(key) + "\ndata: " + repr(request.forms[key]\n\n)) for key in request.forms.keys()]
+
+#    [print("key: " + str(key) + "\ndata: " + repr(request.forms[key]) + "\n\n") for key in request.forms.keys()]
+    
     content = json.loads(request.forms.nodes)
     print("/streetname/ called with \"nodes\": " + str(content)[:300])
     cur = conn.cursor() #multithreaded on one cursor probably doesn't work, so each thread doing a database connection gets a new one
@@ -145,8 +147,8 @@ def findways():
                 # TODO: maybe not
                 wayedges[-1]['coordinates'].append({
                     "deviation" : -1,
-                    "lt" : coordinatelist[edge['customindex']+1][0],
-                    "ln" : coordinatelist[edge['customindex']+1][1]
+                    "lt" : coordinatelist[edge['customindex']][0],
+                    "ln" : coordinatelist[edge['customindex']][1]
                 })
                 continue
 
@@ -163,7 +165,7 @@ def findways():
                 wayedges.append({
                         'name' : edge['name'],
                         'coordinates' : [
-                            {'lt': wayedges[-1]['coordinates'][-1]['lt'],
+                            {'lt': wayedges[-1]['coordinates'][-1]['lt'], #stitch the beginning of the edge we add to the end of the last edge so there will be no little gaps in the way
                                 'ln':  wayedges[-1]['coordinates'][-1]['ln'],
                                 'deviation': wayedges[-1]['coordinates'][-1]['deviation'] + edge['srcdeviation']} if len(wayedges) > 0
                                 else {'lt': edge['srclat'], 'ln': edge['srclon'], 'deviation': edge['srcdeviation']},
@@ -172,7 +174,7 @@ def findways():
                     })
     cur.close()
     result = {'streets' : wayedges, 'failed' : noway}
-    print("response: " + repr(result)[:300])
+#    print("response: " + repr(result)[:300])
     response.content_type = 'application/json; charset=utf8'
     return(json.dumps(ensure_ascii=False,  obj = result))
 

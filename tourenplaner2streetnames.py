@@ -6,12 +6,12 @@ import urllib.request
 import urllib.parse
 
 if len(sys.argv) not in  [3,4]:
-    print(sys.argv[0] + " (url) (filename of json response) [normal|gpx]")
+    print(sys.argv[0] + " (url) (filename of json response) [normal|gpx|json]")
     exit(1)
 
 if len(sys.argv) == 3:
     mode = 'normal'
-elif sys.argv[3] in ['normal','gpx']:
+elif sys.argv[3] in ['normal','gpx','json']:
     mode = sys.argv[3]
 else:
     print("correct mode please")
@@ -51,7 +51,7 @@ if mode == 'gpx':
             print("    <wpt lat=\""+str(nw['srclat'])+"\" lon=\""+str(nw['srclon'])+"\"><name>"+str(index)+"</name></wpt>")
             print("    <wpt lat=\""+str(nw['destlat'])+"\" lon=\""+str(nw['destlon'])+"\"><name>"+str(index)+"</name></wpt>")
     print("</gpx>")
-else:
+elif mode == 'normal':
     print("Your way (<average deviation> <name>):")
     for streetpart in waystreets:
         deviationsum = sum([d['deviation'] for d in streetpart['coordinates']])
@@ -59,3 +59,5 @@ else:
         #coordinates = [(c['lat'], c['lon']) for c in street['coordinates']]
         print(str(deviation), streetpart['name'])
         #print(repr(coordinates))
+elif mode == 'json':
+    print(json.dumps(ensure_ascii=False,  obj = response))
