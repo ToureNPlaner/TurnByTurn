@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
 import psycopg2, bottle, json
 from bottle import route, request, response
-from functools import lru_cache
+#from functools import lru_cache
+from threading import Thread
+from multiprocessing import cpu_count
 
-conn = psycopg2.connect("dbname=gis user=osm")
 NN_NUM = 7
+THREAD_COUNT = cpu_count() - 1 # let one cpu core free for whatever
 COORD_DIV=10.0**7
+connections = [psycopg2.connect("dbname=gis user=osm") for i in range(0,THREAD_COUNT)]
+
+def run_query(query, queryresult, conn):
+    cur = conn.cursor()
+    cur.execute("\nUNION ALL\n".join(query))
+    queryresult.extend(cur.fetchall())
+    cur.close()
 
 #@lru_cache(maxsize=1024)
-def db_streets(cur,coordinatelist):
+def db_streets(coordinatelist):
 
     # 0: identifier
     # 1: osm nodeid
@@ -22,17 +31,21 @@ def db_streets(cur,coordinatelist):
     # 9: way tags
     # 10: meter distance of osm point to given point
 
-    QRY = "\nUNION ALL\n".join(["(SELECT "+str(index)+", highway_nodes.id, ST_Y(highway_nodes.geom), ST_X(highway_nodes.geom), highway_ways.id, highway_ways.tags -> 'name', highway_ways.tags -> 'ref', highway_ways.nodes, highway_way_nodes.sequence_id, highway_ways.tags, ST_Distance('POINT("+str(c[1])+" "+str(c[0])+")',highway_nodes.geom::geography)     FROM highway_nodes JOIN highway_way_nodes ON highway_nodes.id = highway_way_nodes.node_id JOIN highway_ways ON highway_way_nodes.way_id = highway_ways.id ORDER BY highway_nodes.geom <#> ST_GeomFromEWKT('SRID=4326;POINT("+str(c[1])+" "+str(c[0])+")') LIMIT "+str(NN_NUM)+ ")" for index,c in enumerate(coordinatelist)])
+    queries = ["(SELECT "+str(index)+", highway_nodes.id, ST_Y(highway_nodes.geom), ST_X(highway_nodes.geom), highway_ways.id, highway_ways.tags -> 'name', highway_ways.tags -> 'ref', highway_ways.nodes, highway_way_nodes.sequence_id, highway_ways.tags, ST_Distance('POINT("+str(c[1])+" "+str(c[0])+")',highway_nodes.geom::geography)     FROM highway_nodes JOIN highway_way_nodes ON highway_nodes.id = highway_way_nodes.node_id JOIN highway_ways ON highway_way_nodes.way_id = highway_ways.id ORDER BY highway_nodes.geom <#> ST_GeomFromEWKT('SRID=4326;POINT("+str(c[1])+" "+str(c[0])+")') LIMIT "+str(NN_NUM)+ ")" for index,c in enumerate(coordinatelist)]
 
-    #print("qry:\n" + QRY)
-    cur.execute(QRY)
-    qryres = sorted(cur.fetchall(), key = lambda x: x[0])
+    chunksize = (int) (len(queries) / THREAD_COUNT)
+    querylist = [queries[x:x+chunksize] for x in range(0, len(queries), chunksize)]
+
+    qryres = list()
+    threads = [Thread(target=run_query, args=(qry, qryres, connections[i-1])) for i,qry in enumerate(querylist)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    
+    qryres = sorted(qryres, key = lambda x: x[0])
     #print("qry result\n:" + str(qryres))
-    #[print("qryresult "+str(qr[0])+":\nnodeid: "+str(qr[1])+"\nlat: " +str(qr[2])+"\nlon: " +str(qr[3])+"\nwayid: "+str(qr[4])+"\nname: "+str(qr[5])+"\nref: "+str(qr[6])+"\nwaynodes: "+str(qr[7])+"\nseqid: "+str(qr[8])+"\ntags: "+str(qr[9])+"\ndist: "+str(qr[10])+ "\n\n") for qr in sorted(qryres, key=lambda x: x[0])]
 
     noway=[]
     waystreets = []
-
     for index in range(0,len(coordinatelist) - 1):
         # qryres is sorted after the index of the input coordinatelist and we always get NN_NUM results from the database
         currentresultsrc = qryres[index * NN_NUM : (index + 1) * NN_NUM]
@@ -86,20 +99,6 @@ def db_streets(cur,coordinatelist):
                 } for found_way in streetparts])
     return waystreets,noway
 
-                
-                #waystreets.append({
-                    #'name' : street['name'],
-                    #'coordinates' : [
-                        #{'lt': waystreets[-1]['coordinates'][-1]['lt'],
-                            #'ln':  waystreets[-1]['coordinates'][-1]['ln'],
-                            #'deviation': waystreets[-1]['coordinates'][-1]['deviation'] + street['srcdeviation']} if len(waystreets) > 0
-                            #else {'lt': street['srclat'], 'ln': street['srclon'], 'deviation': street['srcdeviation']},
-                        #{'lt': street['destlat'], 'ln': street['destlon'], 'deviation': street['destdeviation']}
-                    #]
-                #})
-
-
-
 @route('/')
 def hello():
     return "Usage: http://" + request.remote_route[-1] + "/streetname/?srclat=X&srclon=X&destlat=X&destlon=X"
@@ -107,11 +106,9 @@ def hello():
 @route('/streetname/',method='POST')
 def findways():
 
-#    [print("key: " + str(key) + "\ndata: " + repr(request.forms[key]) + "\n\n") for key in request.forms.keys()]
-    
+    #[print("key: " + str(key) + "\ndata: " + repr(request.forms[key]) + "\n\n") for key in request.forms.keys()]
     content = json.loads(request.forms.nodes)
     print("/streetname/ called with \"nodes\": " + str(content)[:300])
-    cur = conn.cursor() #multithreaded on one cursor probably doesn't work, so each thread doing a database connection gets a new one
 
     waystreets = []
     noway = []
@@ -119,14 +116,12 @@ def findways():
     for subway in content:
         coordinatelist = tuple( [ (c[0]/COORD_DIV, c[1]/COORD_DIV) for c in subway ] )
         print ("coordinatelist: " + repr(coordinatelist)[:300])
-        ws, nw = db_streets(cur,coordinatelist)
+        ws, nw = db_streets(coordinatelist)
         waystreets.append(ws)
         noway.append(nw)
 
     # waystreets = list of subways
-    # subway = list of possible parts
-    # possible parts = list of alternative edges
-
+    # subway = list of (list of possible edges for each coordinate pair)
     wayedges = []
     for subway in waystreets:
         for edges in subway:
@@ -172,12 +167,11 @@ def findways():
                             {'lt': edge['destlat'], 'ln': edge['destlon'], 'deviation': edge['destdeviation']}
                         ]
                     })
-    cur.close()
     result = {'streets' : wayedges, 'failed' : noway}
-#    print("response: " + repr(result)[:300])
+    print("response: " + repr(result)[:300])
     response.content_type = 'application/json; charset=utf8'
     return(json.dumps(ensure_ascii=False,  obj = result))
 
 bottle.debug(True)
 bottle.run(host='', port=8080, reloader=True,server='tornado')
-conn.close()
+[conn.close() for conn in connections]
