@@ -33,13 +33,16 @@ def db_streets(coordinatelist):
 
     queries = ["(SELECT "+str(index)+", highway_nodes.id, ST_Y(highway_nodes.geom), ST_X(highway_nodes.geom), highway_ways.id, highway_ways.tags -> 'name', highway_ways.tags -> 'ref', highway_ways.nodes, highway_way_nodes.sequence_id, highway_ways.tags, ST_Distance('POINT("+str(c[1])+" "+str(c[0])+")',highway_nodes.geom::geography)     FROM highway_nodes JOIN highway_way_nodes ON highway_nodes.id = highway_way_nodes.node_id JOIN highway_ways ON highway_way_nodes.way_id = highway_ways.id ORDER BY highway_nodes.geom <#> ST_GeomFromEWKT('SRID=4326;POINT("+str(c[1])+" "+str(c[0])+")') LIMIT "+str(NN_NUM)+ ")" for index,c in enumerate(coordinatelist)]
 
-    chunksize = (int) (len(queries) / THREAD_COUNT)
-    querylist = [queries[x:x+chunksize] for x in range(0, len(queries), chunksize)]
-
     qryres = list()
-    threads = [Thread(target=run_query, args=(qry, qryres, connections[i-1])) for i,qry in enumerate(querylist)]
-    [t.start() for t in threads]
-    [t.join() for t in threads]
+    if len(queries) > 50:
+        chunksize = (int) (len(queries) / THREAD_COUNT)
+        querylist = [queries[x:x+chunksize] for x in range(0, len(queries), chunksize)]
+        
+        threads = [Thread(target=run_query, args=(qry, qryres, connections[i-1])) for i,qry in enumerate(querylist)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+    else:
+        run_query(queries, qryres, connections[0])
     
     qryres = sorted(qryres, key = lambda x: x[0])
     #print("qry result\n:" + str(qryres))
