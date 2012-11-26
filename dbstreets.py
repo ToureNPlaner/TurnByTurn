@@ -145,8 +145,8 @@ def findways():
                 # TODO: maybe not
                 wayedges[-1]['coordinates'].append({
                     "deviation" : -1,
-                    "lt" : coordinatelist[edge['customindex']][0],
-                    "ln" : coordinatelist[edge['customindex']][1]
+                    "lt" : coordinatelist[edge['customindex']+1][0],
+                    "ln" : coordinatelist[edge['customindex']+1][1]
                 })
                 continue
 
