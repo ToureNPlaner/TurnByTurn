@@ -114,7 +114,6 @@ def findways():
     print("/streetname/ called with \"nodes\": " + str(content)[:300])
 
     coordinatelist = tuple( [ (c[0]/COORD_DIV, c[1]/COORD_DIV) for subway in content for c in subway ] )
-    print(len(coordinatelist))
     print ("coordinatelist: " + repr(coordinatelist)[:300])
     waystreets, noway = db_streets(coordinatelist)
 
