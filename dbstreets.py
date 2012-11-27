@@ -113,63 +113,54 @@ def findways():
     content = json.loads(request.forms.nodes)
     print("/streetname/ called with \"nodes\": " + str(content)[:300])
 
-    waystreets = []
-    noway = []
+    coordinatelist = tuple( [ (c[0]/COORD_DIV, c[1]/COORD_DIV) for subway in content for c in subway ] )
+    print(len(coordinatelist))
+    print ("coordinatelist: " + repr(coordinatelist)[:300])
+    waystreets, noway = db_streets(coordinatelist)
 
-    for subway in content:
-        coordinatelist = tuple( [ (c[0]/COORD_DIV, c[1]/COORD_DIV) for c in subway ] )
-        print ("coordinatelist: " + repr(coordinatelist)[:300])
-        ws, nw = db_streets(coordinatelist)
-        waystreets.append(ws)
-        noway.append(nw)
-
-    # waystreets = list of subways
-    # subway = list of (list of possible edges for each coordinate pair)
     wayedges = []
-    for subway in waystreets:
-        for edges in subway:
-            sortededges = sorted(edges, key=lambda x: x['srcdeviation'] + x['destdeviation'])
+    for edges in waystreets:
+        sortededges = sorted(edges, key=lambda x: x['srcdeviation'] + x['destdeviation'])
 
-            #TODO: heuristics which edge to choose
-            edge = sortededges[0]
+        #TODO: heuristics which edge to choose
+        edge = sortededges[0]
+        if len(wayedges) > 0 and edge['srcdeviation'] + edge['destdeviation'] > 10:
 
-            if len(wayedges) > 0 and edge['srcdeviation'] + edge['destdeviation'] > 10:
+            # try to use a continuation of the last edge, but only if the coordinates are not close enough
+            #lastname =     wayedges[-1]['name']
+            #filtered = list(filter(lambda x: x['name'] == lastname, foundedges))
+            #if filtered:
+            #    edge = filtered[0]
 
-                # try to use a continuation of the last edge, but only if the coordinates are not close enough
-                #lastname =     wayedges[-1]['name']
-                #filtered = list(filter(lambda x: x['name'] == lastname, foundedges))
-                #if filtered:
-                #    edge = filtered[0]
+            # just pretend there is a node that is part of the last edge
+            # TODO: maybe not
+            wayedges[-1]['coordinates'].append({
+                "deviation" : -1,
+                "lt" : coordinatelist[edge['customindex']+1][0],
+                "ln" : coordinatelist[edge['customindex']+1][1]
+            })
+            continue
 
-                # just pretend there is a node that is part of the last edge
-                # TODO: maybe not
-                wayedges[-1]['coordinates'].append({
-                    "deviation" : -1,
-                    "lt" : coordinatelist[edge['customindex']+1][0],
-                    "ln" : coordinatelist[edge['customindex']+1][1]
+        # if the edge is actually a part of the edge in the last step we add this part to the edge
+        if  len(wayedges) > 0 and edge['name'] == wayedges[-1]['name']:
+            # add new coordinates and confidence to our edge (some_list[-1] => last element in python)
+            #only add the destination since the source SHOULD be the same as the destination of the last point in this edge
+            wayedges[-1]['coordinates'].append(
+                {'lt': edge['destlat'],
+                'ln':edge['destlon'],
+                'deviation': edge['destdeviation']
                 })
-                continue
-
-            # if the edge is actually a part of the edge in the last step we add this part to the edge
-            if  len(wayedges) > 0 and edge['name'] == wayedges[-1]['name']:
-                # add new coordinates and confidence to our edge (some_list[-1] => last element in python)
-                #only add the destination since the source SHOULD be the same as the destination of the last point in this edge
-                wayedges[-1]['coordinates'].append(
-                    {'lt': edge['destlat'],
-                    'ln':edge['destlon'],
-                    'deviation': edge['destdeviation']
-                    })
-            else:
-                wayedges.append({
-                        'name' : edge['name'],
-                        'coordinates' : [
-                            {'lt': wayedges[-1]['coordinates'][-1]['lt'], #stitch the beginning of the edge we add to the end of the last edge so there will be no little gaps in the way
-                                'ln':  wayedges[-1]['coordinates'][-1]['ln'],
-                                'deviation': wayedges[-1]['coordinates'][-1]['deviation'] + edge['srcdeviation']} if len(wayedges) > 0
-                                else {'lt': edge['srclat'], 'ln': edge['srclon'], 'deviation': edge['srcdeviation']},
-                            {'lt': edge['destlat'], 'ln': edge['destlon'], 'deviation': edge['destdeviation']}
-                        ]
-                    })
+        else:
+            wayedges.append({
+                    'name' : edge['name'],
+                    'coordinates' : [
+                        {'lt': wayedges[-1]['coordinates'][-1]['lt'], #stitch the beginning of the edge we add to the end of the last edge so there will be no little gaps in the way
+                            'ln':  wayedges[-1]['coordinates'][-1]['ln'],
+                            'deviation': wayedges[-1]['coordinates'][-1]['deviation'] + edge['srcdeviation']} if len(wayedges) > 0
+                            else {'lt': edge['srclat'], 'ln': edge['srclon'], 'deviation': edge['srcdeviation']},
+                        {'lt': edge['destlat'], 'ln': edge['destlon'], 'deviation': edge['destdeviation']}
+                    ]
+                })
     result = {'streets' : wayedges, 'failed' : noway}
     print("response: " + repr(result)[:300])
     response.content_type = 'application/json; charset=utf8'
