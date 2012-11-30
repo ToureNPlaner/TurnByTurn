@@ -39,8 +39,8 @@ def db_streets(coordinatelist):
         querylist = [queries[x:x+chunksize] for x in range(0, len(queries), chunksize)]
         
         threads = [Thread(target=run_query, args=(qry, qryres, connections[i-1])) for i,qry in enumerate(querylist)]
-        [t.start() for t in threads]
-        [t.join() for t in threads]
+        for t in threads: t.start()
+        for t in threads: t.join()
     else:
         run_query(queries, qryres, connections[0])
     
@@ -167,4 +167,4 @@ def findways():
 
 bottle.debug(True)
 bottle.run(host='', port=8080, reloader=True,server='tornado')
-[conn.close() for conn in connections]
+for conn in connections: conn.close()
