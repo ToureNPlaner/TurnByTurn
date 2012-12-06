@@ -16,10 +16,8 @@ elif sys.argv[3] in ['normal','gpx','json']:
 else:
     print("correct mode please")
     exit (1)
-jsonfile = open(sys.argv[2])
-#jsoncontent = json.loads(jsonfile.read())
-jsoncontent = json.loads(jsonfile.read())['way']
-jsonfile.close()
+
+jsoncontent = json.load(open(sys.argv[2]))['way']
 
 tosend = [ [ (c['lt'], c['ln']) for c in subway ] for subway in jsoncontent ]
 
