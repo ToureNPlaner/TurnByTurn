@@ -6,7 +6,7 @@ from threading import Thread
 from multiprocessing import cpu_count
 
 NN_NUM = 7
-THREAD_COUNT = cpu_count() - 1 # let one cpu core free for whatever
+THREAD_COUNT = cpu_count() *2 # sorry, scheduler, but I want to avoid single left over longer running queries
 COORD_DIV=10.0**7
 connections = [psycopg2.connect("dbname=gis user=osm") for i in range(0,THREAD_COUNT)]
 
@@ -108,11 +108,23 @@ def hello():
 
 @route('/streetname/',method='POST')
 def findways():
-    #[print("key: " + str(key) + "\ndata: " + repr(request.forms[key]) + "\n\n") for key in request.forms.keys()]
-    content = request.json
-    print("/streetname/ called with \"nodes\": " + str(content)[:300])
+    #print("content-type: " + request.content_type)
+    #[print("\treqformkey: " + str(key) + "\n\t\tdata: " + repr(request.forms[key]) + "\n\n") for key in request.forms.keys()]
 
-    coordinatelist = tuple( [ (c[0]/COORD_DIV, c[1]/COORD_DIV) for subway in content for c in subway ] )
+    content = request.json
+
+    print("/streetname/ called with \"nodes\": " + str(content)[:300])
+    coordinatelist = []
+    if content: # why would that ever happen?
+        for subway in content:
+            if subway:
+                for c in subway:
+                    if c:
+                        coordinatelist.append((c[0]/COORD_DIV, c[1]/COORD_DIV))
+    else:
+        response.content_type = 'application/json; charset=utf8'
+        return(json.dumps(ensure_ascii=False,  obj = {'error' : 'No content!'}))
+
     print ("coordinatelist: " + repr(coordinatelist)[:300])
     waystreets, noway = db_streets(coordinatelist)
 

@@ -28,6 +28,10 @@ respstat, resp = http.request(uri=url, method='POST', body=json.dumps(tosend), h
 end = time.time()
 
 response = json.loads(str(resp, "UTF-8"))
+if 'error' in response.keys():
+    print("\tfilename: " + sys.argv[2] + "\n\terror: " + response['error'])
+    exit(0)
+
 waystreets = response['streets']
 noway = response['failed']
 

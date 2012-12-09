@@ -1,6 +1,7 @@
 You need:
 
 * A postgresql database
+* python3 + bottle for python (temporarily packaged with this program with an increased MEMFILE_MAX)
 * Reasonably much disk space
 * A dump of the area you want covered. .pbf files are the smallest to download so I recommend them. You can download *.osm.pbf files from various sources. I get mine from geofabrik: http://download.geofabrik.de/
 
