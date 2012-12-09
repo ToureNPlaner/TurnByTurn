@@ -108,9 +108,8 @@ def hello():
 
 @route('/streetname/',method='POST')
 def findways():
-
     #[print("key: " + str(key) + "\ndata: " + repr(request.forms[key]) + "\n\n") for key in request.forms.keys()]
-    content = json.loads(request.forms.nodes)
+    content = request.json
     print("/streetname/ called with \"nodes\": " + str(content)[:300])
 
     coordinatelist = tuple( [ (c[0]/COORD_DIV, c[1]/COORD_DIV) for subway in content for c in subway ] )

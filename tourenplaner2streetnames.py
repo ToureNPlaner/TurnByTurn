@@ -2,36 +2,38 @@
 
 import sys
 import json
-import urllib.request
-import urllib.parse
+import httplib2
+import time
 
 if len(sys.argv) not in  [3,4]:
-    print(sys.argv[0] + " (url) (filename of json response) [normal|gpx|json]")
+    print(sys.argv[0] + " (url) (filename of json response) [normal|gpx|json|benchmark (time in seconds)]")
     exit(1)
 
 if len(sys.argv) == 3:
     mode = 'normal'
-elif sys.argv[3] in ['normal','gpx','json']:
+elif sys.argv[3] in ['normal','gpx','json','benchmark']:
     mode = sys.argv[3]
 else:
     print("correct mode please")
     exit (1)
 
 jsoncontent = json.load(open(sys.argv[2]))['way']
-
 tosend = [ [ (c['lt'], c['ln']) for c in subway ] for subway in jsoncontent ]
-
 url = sys.argv[1]
 
-r = urllib.request.urlopen(url, data = urllib.parse.urlencode({"nodes": json.dumps(tosend)}).encode())
+start = time.time()
+http = httplib2.Http(disable_ssl_certificate_validation=True)
+headers = {'Content-Type':'application/json', "Accept":"application/json"}
+respstat, resp = http.request(uri=url, method='POST', body=json.dumps(tosend), headers=headers)
+end = time.time()
 
-response = json.loads(r.read().decode("utf-8"))
-#print(json.dumps(response,indent = 2))
-
+response = json.loads(str(resp, "UTF-8"))
 waystreets = response['streets']
 noway = response['failed']
 
-if mode == 'gpx':
+if mode == 'benchmark':
+    print(str(end - start))
+elif mode == 'gpx':
     print("""<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <gpx xmlns="http://www.topografix.com/GPX/1/1" creator="byHand" version="1.1"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
