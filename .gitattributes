@@ -1,2 +1,3 @@
 *.json binary
 bottle.py binary
+random_coordinates binary
