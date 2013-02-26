@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import psycopg2, bottle, json
 from bottle import route, request, response
-#from functools import lru_cache
 from threading import Thread
 from multiprocessing import cpu_count
+from math import ceil
 
 NN_NUM = 7
-THREAD_COUNT = cpu_count() *2 # sorry, scheduler, but I want to avoid single left over longer running queries
+THREAD_COUNT = cpu_count() *2
 COORD_DIV=10.0**7
 connections = [psycopg2.connect("dbname=gis user=osm") for i in range(0,THREAD_COUNT)]
 
@@ -16,7 +16,6 @@ def run_query(query, queryresult, conn):
     queryresult.extend(cur.fetchall())
     cur.close()
 
-#@lru_cache(maxsize=1024)
 def db_streets(coordinatelist):
 
     # 0: identifier
@@ -35,10 +34,10 @@ def db_streets(coordinatelist):
 
     qryres = list()
     if len(queries) > 50:
-        chunksize = (int) (len(queries) / THREAD_COUNT)
-        querylist = [queries[x:x+chunksize] for x in range(0, len(queries), chunksize)]
-        
-        threads = [Thread(target=run_query, args=(qry, qryres, connections[i-1])) for i,qry in enumerate(querylist)]
+        # cut our long list of queries for each point into #THREAD_COUNT many sub lists
+        chunksize = ceil(len(queries) / THREAD_COUNT) # calculate how long one sublist needs to be
+        querylist = [queries[x:x+chunksize] for x in range(0, len(queries) - 1, chunksize)]
+        threads = [Thread(target=run_query, args=(qry, qryres, connections[i])) for i,qry in enumerate(querylist)] # for each of the sublists, create a thread and choose one of the database connections for its execution
         for t in threads: t.start()
         for t in threads: t.join()
     else:
@@ -109,7 +108,7 @@ def hello():
 @route('/streetname/',method='POST')
 def findways():
     #print("content-type: " + request.content_type)
-    #[print("\treqformkey: " + str(key) + "\n\t\tdata: " + repr(request.forms[key]) + "\n\n") for key in request.forms.keys()]
+    [print("\treqformkey: " + str(key) + "\n\t\tdata: " + repr(request.forms[key]) + "\n\n") for key in request.forms.keys()]
 
     content = request.json
 
