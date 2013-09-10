@@ -17,7 +17,7 @@ UPDATE pg_database SET datistemplate = FALSE WHERE datname = 'template1';
 DROP DATABASE template1;
 CREATE DATABASE template1 WITH TEMPLATE = template0 ENCODING = 'UNICODE';
 UPDATE pg_database SET datistemplate = TRUE WHERE datname = 'template1';
-exit
+\q
 
 # http://wiki.openstreetmap.org/wiki/Osmosis/PostGIS_Setup
 # create the osm user with a database "gis" with the "gis" language. It may already exist but it won't hurt running it anyway
@@ -27,12 +27,12 @@ createdb -E UTF8 -O osm gis
 createlang plpgsql gis
 
 # postgis schemas
-psql gis < /usr/share/postgresql/contrib/postgis-2.0/postgis.sql
-psql gis < /usr/share/postgresql/contrib/postgis-2.0/spatial_ref_sys.sql
+psql gis < /usr/share/postgresql/contrib/postgis-2.1/postgis.sql
+psql gis < /usr/share/postgresql/contrib/postgis-2.1/spatial_ref_sys.sql
 
 # you possibly need additional projections
 # http://wiki.openstreetmap.org/wiki/Mapnik#Invalid_projection_in_pgSQL
-wget http://svn.openstreetmap.org/applications/utils/export/osm2pgsql/900913.sql && psql -U osm -f 900913.sql gis
+wget https://raw.github.com/openstreetmap/osm2pgsql/master/900913.sql && psql -f 900913.sql gis
 psql gis -c "GRANT ALL ON geometry_columns, spatial_ref_sys TO osm;"
 
 # pgsimple schema if you don't want hstore for tags
@@ -40,8 +40,27 @@ psql gis -c "GRANT ALL ON geometry_columns, spatial_ref_sys TO osm;"
 psql gis -c "CREATE EXTENSION hstore;"
 psql gis -f /usr/share/osmosis/script/pgsnapshot_schema_0.6.sql
 
+
+=============================================
+ALTERNATIVE 1
+=============================================
+
+# load the pbf with osmosis
+# --tf accept-ways highway=*    keep only ways with tag highway=(anything)
+# --used-node   Restricts output of nodes to those that are used in ways and relations.
+osmosis --read-pbf file="germany.osm.pbf" --tf accept-ways highway=* --used-node --write-pgsql user="postgres" database="gis"
+
+sudo -u postgres psql -d gis
+GRANT ALL ON nodes, ways, way_nodes TO osm;
+CLUSTER nodes USING idx_nodes_geom;
+vacuum analyze;
+
+
+=============================================
+ALTERNATIVE 2
+=============================================
+
 # convert the pbf into text files that can be COPY'ed into the postgresql database (much faster than INSERT'ing everything with write-psql)
-#osmosis --read-pbf file="*.osm.pbf" --write-pgsql user="osm" database="gis"
 JAVACMD_OPTIONS="-Djava.io.tmpdir=/var/tmp" osmosis --read-pbf file="*.osm.pbf" --buffer --write-pgsql-dump directory=pgsqldump
 
 # use the slightly reduced pgsnapshot_load_0.6.sql from this repository
