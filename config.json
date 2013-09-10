@@ -1,0 +1,8 @@
+{
+    "NN_NUM" : 7,
+    "nodes_table" : "nodes",
+    "ways_table" : "ways",
+    "way_nodes_table" : "way_nodes",
+    "dbname": "gis",
+    "dbuser": "osm"
+}

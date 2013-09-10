@@ -5,10 +5,19 @@ from threading import Thread
 from multiprocessing import cpu_count
 from math import ceil
 
-NN_NUM = 7
+conf = json.load(open("config.json"))
+nodes_table = conf['nodes_table']
+ways_table = conf['ways_table']
+way_nodes_table = conf['way_nodes_table']
+dbname = conf['dbname']
+dbuser= conf['dbuser']
+
+NN_NUM = conf['NN_NUM']
 THREAD_COUNT = cpu_count() *2
 COORD_DIV=10.0**7
-connections = [psycopg2.connect("dbname=gis user=osm") for i in range(0,THREAD_COUNT)]
+
+connections = [psycopg2.connect("dbname={db} user={user}".format(db=dbname, user=dbuser)) for i in range(0,THREAD_COUNT)]
+
 
 def run_query(query, queryresult, conn):
     cur = conn.cursor()
@@ -29,8 +38,12 @@ def db_streets(coordinatelist):
     # 8: sequence number of node in way
     # 9: way tags
     # 10: meter distance of osm point to given point
-
-    queries = ["(SELECT "+str(index)+", highway_nodes.id, ST_Y(highway_nodes.geom), ST_X(highway_nodes.geom), highway_ways.id, highway_ways.tags -> 'name', highway_ways.tags -> 'ref', highway_ways.nodes, highway_way_nodes.sequence_id, highway_ways.tags, ST_Distance('POINT("+str(c[1])+" "+str(c[0])+")',highway_nodes.geom::geography)     FROM highway_nodes JOIN highway_way_nodes ON highway_nodes.id = highway_way_nodes.node_id JOIN highway_ways ON highway_way_nodes.way_id = highway_ways.id ORDER BY highway_nodes.geom <#> ST_GeomFromEWKT('SRID=4326;POINT("+str(c[1])+" "+str(c[0])+")') LIMIT "+str(NN_NUM)+ ")" for index,c in enumerate(coordinatelist)]
+    
+    queries = [ """
+(SELECT {idx!s}, {nodes}.id, ST_Y({nodes}.geom), ST_X({nodes}.geom), {ways}.id, {ways}.tags -> 'name', {ways}.tags -> 'ref', {ways}.nodes, {way_nodes}.sequence_id, {ways}.tags, ST_Distance('POINT({c1!s} {c0!s})',{nodes}.geom::geography)
+FROM {nodes} JOIN {way_nodes} ON {nodes}.id = {way_nodes}.node_id JOIN {ways} ON {way_nodes}.way_id = {ways}.id
+ORDER BY {nodes}.geom <#> ST_GeomFromEWKT('SRID=4326;POINT({c1!s} {c0!s})') LIMIT {num!s})
+""".format(idx=index, nodes=nodes_table, ways=ways_table, way_nodes=way_nodes_table, c1=c[1], c0=c[0], num=NN_NUM) for index,c in enumerate(coordinatelist)]
 
     qryres = list()
     if len(queries) > 50:
@@ -108,7 +121,7 @@ def hello():
 @route('/streetname/',method='POST')
 def findways():
     #print("content-type: " + request.content_type)
-    [print("\treqformkey: " + str(key) + "\n\t\tdata: " + repr(request.forms[key]) + "\n\n") for key in request.forms.keys()]
+    #[print("\treqformkey: " + str(key) + "\n\t\tdata: " + repr(request.forms[key]) + "\n\n") for key in request.forms.keys()]
 
     content = request.json
 
