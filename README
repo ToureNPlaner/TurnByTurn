@@ -38,72 +38,23 @@ psql gis -c "GRANT ALL ON geometry_columns, spatial_ref_sys TO osm;"
 # pgsimple schema if you don't want hstore for tags
 # psql -d gis -f /usr/share/osmosis/script/pgsimple_schema_0.6.sql
 psql gis -c "CREATE EXTENSION hstore;"
-psql gis -f /usr/share/osmosis/script/pgsnapshot_schema_0.6.sql
-
-
-=============================================
-ALTERNATIVE 1
-=============================================
 
 # load the pbf with osmosis
 # --tf accept-ways highway=*    keep only ways with tag highway=(anything)
 # --used-node   Restricts output of nodes to those that are used in ways and relations.
-osmosis --read-pbf file="germany.osm.pbf" --tf accept-ways highway=* --used-node --write-pgsql user="postgres" database="gis"
+# and write it to current_directory/pgsqldump/
+# By default java uses /tmp as temporary directory. Sometimes /tmp is a tmpfs that might get full
+mkdir pgsqldump/
+JAVACMD_OPTIONS="-Djava.io.tmpdir=/var/tmp" osmosis --read-pbf file="germany.osm.pbf" --tf accept-ways highway=* --used-node --buffer --write-pgsql-dump directory=pgsqldump
+
+# Create the tables and
+# use the slightly edited pgsnapshot_load_0.6.sql from this repository
+# it copies only the columns we need into the database
+cd pgsqldump
+psql -U postgres -d gis -f ./pgsnapshot_schema_0.6.sql
+psql -U postgres -d gis -f ./pgsnapshot_load_0.6.sql
 
 sudo -u postgres psql -d gis
 GRANT ALL ON nodes, ways, way_nodes TO osm;
 CLUSTER nodes USING idx_nodes_geom;
 vacuum analyze;
-
-
-=============================================
-ALTERNATIVE 2
-=============================================
-
-# convert the pbf into text files that can be COPY'ed into the postgresql database (much faster than INSERT'ing everything with write-psql)
-JAVACMD_OPTIONS="-Djava.io.tmpdir=/var/tmp" osmosis --read-pbf file="*.osm.pbf" --buffer --write-pgsql-dump directory=pgsqldump
-
-# use the slightly reduced pgsnapshot_load_0.6.sql from this repository
-cd pgsqldump
-sudo -u postgres psql -d gis -f ./pgsnapshot_load_0.6.sql
-
-----
-
-
-Optionally: Create a version of the tables that only contain nodes, ways and way_nodes relations that are relevant to our use case:
-
------
-
-sudo -u postgres psql -d gis
-
-SELECT DISTINCT ways.id, ways.tags, ways.nodes INTO highway_ways FROM ways WHERE ways.tags::hstore ? 'highway';
-create index idx_highway_ways_id on highway_ways(id);
-alter table highway_ways add primary key(id);
-
-SELECT DISTINCT way_nodes.way_id, way_nodes.node_id, way_nodes.sequence_id INTO highway_way_nodes FROM way_nodes INNER JOIN highway_ways ON way_nodes.way_id = highway_ways.id;
-create index idx_highway_way_nodes_node_id on highway_way_nodes(node_id);
-alter table highway_way_nodes add primary key(node_id);
-alter table highway_way_nodes add foreign key(way_id) references highway_ways(id);
-
-SELECT DISTINCT nodes.id, nodes.tags, nodes.geom INTO highway_nodes FROM nodes INNER JOIN highway_way_nodes ON nodes.id = highway_way_nodes.node_id;
-alter table highway_nodes add constraint id_unique UNIQUE (id);
-CREATE INDEX idx_highway_nodes_geom ON highway_nodes USING GIST(geom);
-alter table highway_way_nodes add foreign key(node_id) references highway_nodes(id);
-
-GRANT ALL on highway_nodes, highway_way_nodes, highway_ways TO osm;
-
-vacuum analyze;
-
------
-
-Optionally: remove the unused old tables:
-
-----
-
-sudo -u postgres psql -d gis
-
-drop table ways;
-drop table nodes;
-drop table way_nodes;
-
-----
