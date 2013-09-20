@@ -35,8 +35,6 @@ psql gis < /usr/share/postgresql/contrib/postgis-2.1/spatial_ref_sys.sql
 wget https://raw.github.com/openstreetmap/osm2pgsql/master/900913.sql && psql -f 900913.sql gis
 psql gis -c "GRANT ALL ON geometry_columns, spatial_ref_sys TO osm;"
 
-# pgsimple schema if you don't want hstore for tags
-# psql -d gis -f /usr/share/osmosis/script/pgsimple_schema_0.6.sql
 psql gis -c "CREATE EXTENSION hstore;"
 
 # load the pbf with osmosis
@@ -48,13 +46,15 @@ mkdir pgsqldump/
 JAVACMD_OPTIONS="-Djava.io.tmpdir=/var/tmp" osmosis --read-pbf file="germany.osm.pbf" --tf accept-ways highway=* --used-node --buffer --write-pgsql-dump directory=pgsqldump
 
 # Create the tables and
-# use the slightly edited pgsnapshot_load_0.6.sql from this repository
-# it copies only the columns we need into the database
+# use the modified files from this repository:
+# * pgsnapshot_schema_0.6.sql - creates tables with specified columns
+# * pgsnapshot_load_0.6.sql - copies only the columns we need into the database (I have not found how to tell osmosis which columns to dump with --write-pgsql-dump)
 cd pgsqldump
 psql -U postgres -d gis -f ./pgsnapshot_schema_0.6.sql
 psql -U postgres -d gis -f ./pgsnapshot_load_0.6.sql
 
 sudo -u postgres psql -d gis
 GRANT ALL ON nodes, ways, way_nodes TO osm;
-CLUSTER nodes USING idx_nodes_geom;
+# Clustering can potentially take a long time
+# CLUSTER nodes USING idx_nodes_geom;
 vacuum analyze;
