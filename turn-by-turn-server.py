@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
-import psycopg2, bottle, json
+import bottle, json
 from bottle import route, request, response
 from threading import Thread
 from multiprocessing import cpu_count
 from math import ceil
+from hashnn import nnsearcher
 
 conf = json.load(open("config.json"))
-nodes_table = conf['nodes_table']
-ways_table = conf['ways_table']
-way_nodes_table = conf['way_nodes_table']
-dbname = conf['dbname']
-dbuser= conf['dbuser']
+pickled_file = conf["pickled_file"]
+
+nn = nnsearcher()
+nn.readfiles(pickled_file)
 
 NN_NUM = conf['NN_NUM']
 THREAD_COUNT = cpu_count() *2
 COORD_DIV=10.0**7
-
-connections = [psycopg2.connect("dbname={db} user={user}".format(db=dbname, user=dbuser)) for i in range(0,THREAD_COUNT)]
-
 
 def run_query(query, queryresult, conn):
     cur = conn.cursor()
@@ -26,6 +23,8 @@ def run_query(query, queryresult, conn):
     cur.close()
 
 def db_streets(coordinatelist):
+    for c in coordinatelist:
+        nn.getNN(c)
 
     # 0: identifier
     # 1: osm nodeid
@@ -38,25 +37,28 @@ def db_streets(coordinatelist):
     # 8: sequence number of node in way
     # 9: way tags
     # 10: meter distance of osm point to given point
-    
-    queries = [ """
-(SELECT {idx!s}, {nodes}.id, ST_Y({nodes}.geom), ST_X({nodes}.geom), {ways}.id, {ways}.tags -> 'name', {ways}.tags -> 'ref', {ways}.nodes, {way_nodes}.sequence_id, {ways}.tags, ST_Distance('POINT({c1!s} {c0!s})',{nodes}.geom::geography)
-FROM {nodes} JOIN {way_nodes} ON {nodes}.id = {way_nodes}.node_id JOIN {ways} ON {way_nodes}.way_id = {ways}.id
-ORDER BY {nodes}.geom <#> ST_GeomFromEWKT('SRID=4326;POINT({c1!s} {c0!s})') LIMIT {num!s})
-""".format(idx=index, nodes=nodes_table, ways=ways_table, way_nodes=way_nodes_table, c1=c[1], c0=c[0], num=NN_NUM) for index,c in enumerate(coordinatelist)]
 
-    qryres = list()
-    if len(queries) > 50:
-        # cut our long list of queries for each point into #THREAD_COUNT many sub lists
-        chunksize = ceil(len(queries) / THREAD_COUNT) # calculate how long one sublist needs to be
-        querylist = [queries[x:x+chunksize] for x in range(0, len(queries) - 1, chunksize)]
-        threads = [Thread(target=run_query, args=(qry, qryres, connections[i])) for i,qry in enumerate(querylist)] # for each of the sublists, create a thread and choose one of the database connections for its execution
-        for t in threads: t.start()
-        for t in threads: t.join()
-    else:
-        run_query(queries, qryres, connections[0])
-    
-    qryres = sorted(qryres, key = lambda x: x[0])
+
+#    queries = [ """
+#(SELECT {idx!s}, {nodes}.id, ST_Y({nodes}.geom), ST_X({nodes}.geom), {ways}.id, {ways}.tags -> 'name', {ways}.tags -> 'ref', {ways}.nodes, {way_nodes}.sequence_id, {ways}.tags, ST_Distance('POINT({c1!s} {c0!s})',{nodes}.geom::geography)
+#FROM {nodes} JOIN {way_nodes} ON {nodes}.id = {way_nodes}.node_id JOIN {ways} ON {way_nodes}.way_id = {ways}.id
+#ORDER BY {nodes}.geom <#> ST_GeomFromEWKT('SRID=4326;POINT({c1!s} {c0!s})') LIMIT {num!s})
+#""".format(idx=index, nodes=nodes_table, ways=ways_table, way_nodes=way_nodes_table, c1=c[1], c0=c[0], num=NN_NUM) for index,c in enumerate(coordinatelist)]
+
+    #qryres = list()
+    #if len(queries) > 50:
+    #    # cut our long list of queries for each point into #THREAD_COUNT many sub lists
+    #    chunksize = ceil(len(queries) / THREAD_COUNT) # calculate how long one sublist needs to be
+    #    querylist = [queries[x:x+chunksize] for x in range(0, len(queries) - 1, chunksize)]
+    #    threads = [Thread(target=run_query, args=(qry, qryres, connections[i])) for i,qry in enumerate(querylist)] # for each of the sublists, create a thread and choose one of the database connections for its execution
+    #    for t in threads: t.start()
+    #    for t in threads: t.join()
+    #else:
+    #    run_query(queries, qryres, connections[0])
+
+    #qryres = sorted(qryres, key = lambda x: x[0])
+
+    qryres = None
     #print("qry result\n:" + str(qryres))
 
     noway=[]
@@ -65,11 +67,11 @@ ORDER BY {nodes}.geom <#> ST_GeomFromEWKT('SRID=4326;POINT({c1!s} {c0!s})') LIMI
         # qryres is sorted after the index of the input coordinatelist and we always get NN_NUM results from the database
         currentresultsrc = qryres[index * NN_NUM : (index + 1) * NN_NUM]
         currentresultdest = qryres[(index + 1) * NN_NUM : (index + 2) * NN_NUM]
-        
+
         # first, filter each two node pairs and take those with an edge between them
         # then, sort after the deviation from the given coordinates
         streetparts = [(src,dest) for src in currentresultsrc for dest in currentresultdest if src[1] != dest[1] and src[4] == dest[4]]
-    
+
         if not streetparts:
             noway.append({
                 'srclat' : coordinatelist[index][0],
@@ -95,7 +97,7 @@ ORDER BY {nodes}.geom <#> ST_GeomFromEWKT('SRID=4326;POINT({c1!s} {c0!s})') LIMI
                         'destlat' : coordinatelist[index+1][0],
                         'destlon' : coordinatelist[index+1][1]
                     }])
-            
+
         else :
             waystreets.append([
                 {    "customindex" : index,
@@ -189,5 +191,4 @@ def findways():
     return(json.dumps(ensure_ascii=False,  obj = result))
 
 bottle.debug(True)
-bottle.run(host='', port=8080, reloader=True,server='tornado')
-for conn in connections: conn.close()
+bottle.run(host='', port=8080)

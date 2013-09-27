@@ -1,8 +1,6 @@
 {
     "NN_NUM" : 7,
-    "nodes_table" : "nodes",
-    "ways_table" : "ways",
-    "way_nodes_table" : "way_nodes",
-    "dbname": "gis",
-    "dbuser": "osm"
+    "osm_file" : "/tmp/germany-latest.osm.pbf",
+    "pickled_way_file" : "/tmp/germany.osm.way.pickle",
+    "pickled_node_file" : "/tmp/germany.osm.node.pickle"
 }
