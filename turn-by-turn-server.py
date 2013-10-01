@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-import psycopg2, bottle, json
+try:
+    import psycopg2
+except:
+    #for e.g. pypy and pypy3 we can use the pg8000 module instead of psycopg2
+    from pg8000 import DBAPI as psycopg2
+
+import uuid
+import bottle
+import json
 from bottle import route, request, response
 from threading import Thread
 from multiprocessing import cpu_count
@@ -120,12 +128,13 @@ def hello():
 
 @route('/streetname/',method='POST')
 def findways():
+    reqid = str(uuid.uuid4())[:8]
     #print("content-type: " + request.content_type)
     #[print("\treqformkey: " + str(key) + "\n\t\tdata: " + repr(request.forms[key]) + "\n\n") for key in request.forms.keys()]
 
     content = request.json
 
-    print("/streetname/ called with \"nodes\": " + str(content)[:300])
+    #print("/streetname/ called with \"nodes\": " + str(content)[:300])
     coordinatelist = []
     if content: # why would that ever happen?
         for subway in content:
@@ -137,7 +146,7 @@ def findways():
         response.content_type = 'application/json; charset=utf8'
         return(json.dumps(ensure_ascii=False,  obj = {'error' : 'No content!'}))
 
-    print ("coordinatelist: " + repr(coordinatelist)[:300])
+    print ("{}: processing request with {!s} coordinates".format(reqid, len(coordinatelist)))
     waystreets, noway = db_streets(coordinatelist)
 
     wayedges = []
@@ -184,7 +193,7 @@ def findways():
                     ]
                 })
     result = {'streets' : wayedges, 'failed' : noway}
-    print("response: " + repr(result)[:300])
+    print("{}: response with {!s} streets".format(reqid, len(wayedges)))
     response.content_type = 'application/json; charset=utf8'
     return(json.dumps(ensure_ascii=False,  obj = result))
 
