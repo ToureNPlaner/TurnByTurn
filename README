@@ -5,6 +5,7 @@ You need:
 * Reasonably much disk space
 * A dump of the area you want covered. .pbf files are the smallest to download so I recommend them. You can download *.osm.pbf files from various sources. I get mine from geofabrik: http://download.geofabrik.de/
 
+An upstart job is provided with turnbyturn-upstart.conf. Copy it to /etc/init/turnbyturn.conf and then use "start/stop turnbyturn". Logs can be found in /var/log/upstart/turnbyturn.conf
 
 First, prepare the postgresql database with the openstreetmap data.
 
