@@ -137,11 +137,16 @@ def findways():
     #print("/streetname/ called with \"nodes\": " + str(content)[:300])
     coordinatelist = []
     if content: # why would that ever happen?
-        for subway in content:
-            if subway:
-                for c in subway:
-                    if c:
-                        coordinatelist.append((c[0]/COORD_DIV, c[1]/COORD_DIV))
+        try:
+            for subway in content:
+                if subway:
+                    for c in subway:
+                        if c:
+                            # SQL injection should be impossible since every attempt should fail at arithmetic division
+                            coordinatelist.append((c[0]/COORD_DIV, c[1]/COORD_DIV))
+        except Exception as ex:
+            return json.dumps(ensure_ascii=False,  obj = {'error' : 'Invalid data! (' + str(ex) + ')'})
+
     else:
         response.content_type = 'application/json; charset=utf8'
         return(json.dumps(ensure_ascii=False,  obj = {'error' : 'No content!'}))
